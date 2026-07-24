@@ -29,6 +29,21 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 - **Never** force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit plain-words authorisation in the immediately preceding message. `--force-with-lease` is no exception.
 - Never put session URLs (`https://claude.ai/code/session_...`) in commit messages or PR bodies — they reference private conversations.
 
+## Releasing
+
+Version numbers are derived from commit messages, not chosen by hand, which is the other reason Conventional Commits are enforced in CI.
+
+```bash
+cz bump          # reads the commits since the last tag, decides the increment
+git push --follow-tags
+```
+
+`cz bump` updates `[project].version`, `oamx/__init__.py:__version__` and `CHANGELOG.md` together, commits, and creates an annotated `vX.Y.Z` tag. `major_version_zero` keeps a breaking change from jumping 0.x straight to 1.0.
+
+Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check the console script runs, publish to PyPI, then cut a GitHub release. Nothing publishes on an ordinary push or pull request.
+
+PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first.
+
 ## Invariants that are not negotiable
 
 - **Zero runtime dependencies.** `pyproject.toml` declares none, the test suite is stdlib `unittest`, and CI installs nothing. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. Framework adapters (`integrations.crewai_tool`) import lazily inside the function.

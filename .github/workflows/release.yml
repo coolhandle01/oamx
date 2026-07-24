@@ -1,0 +1,95 @@
+name: release
+
+# Fires only on a version tag, which a human pushes via `cz bump`. Nothing
+# here runs on a normal push or pull request, so an accidental publish is not
+# reachable from ordinary development.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pipx run build
+      # Refuse to ship metadata PyPI would reject, before anything is uploaded.
+      - run: pipx run twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  smoke:
+    name: smoke test the wheel
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      # The suite runs from a source checkout; this proves the *built artefact*
+      # installs and that the console script is wired up.
+      - run: pip install dist/*.whl
+      - run: oamx --version
+      - name: a missing database is a clean error, not a traceback
+        run: |
+          set +e
+          out=$(oamx names --db /nonexistent.sqlite 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          [ "$rc" = "1" ] || { echo "expected exit 1, got $rc"; exit 1; }
+          case "$out" in *"no such database"*) ;; *) echo "unexpected message"; exit 1 ;; esac
+
+  publish:
+    name: publish to PyPI
+    needs: smoke
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      # Trusted Publishing: PyPI verifies this workflow's OIDC identity, so
+      # there is no long-lived API token stored in the repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: github release
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "${{ github.ref_name }}" dist/*
+          --title "${{ github.ref_name }}"
+          --generate-notes
