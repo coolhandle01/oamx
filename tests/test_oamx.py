@@ -20,8 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from oamx.cli import main  # noqa: E402
 from oamx.integrations import query, values  # noqa: E402
-from oamx.model import extract_value, normalise_fqdn  # noqa: E402
+from oamx.model import Asset, Edge, extract_value, normalise_fqdn  # noqa: E402
 from oamx.reader import AssetDB, OamxError, _parse_ts, parse_duration  # noqa: E402
+from oamx.select import resolved_fqdns  # noqa: E402
 from tests import fixtures  # noqa: E402
 
 _TMP: tempfile.TemporaryDirectory | None = None
@@ -417,6 +418,42 @@ class TestExitCodes(CliCase):
         names = self.run_cli("names", "--db", str(V4), "-d", "example.com")
         self.assertIn("www.example.com", names)
         self.assertNotIn("other.co.uk", names)
+
+
+class TestLayoutParity(CliCase):
+    """Answers that must not depend on which Amass version wrote the database.
+
+    v5 labels every DNS edge ``dns_record`` and carries the record type in a
+    numeric ``header.rr_type``. v4 encoded it in the label instead:
+    ``a_record``, ``aaaa_record``, ``cname_record``. Anything that keys off
+    edge labels has to accept both spellings, and the cost of getting it wrong
+    is asymmetric — a filter that matches nothing empties the pipeline and
+    still exits 0, which is the failure this tool exists to prevent.
+    """
+
+    def test_resolved_only_agrees_across_layouts(self):
+        v5_names = self.run_cli("names", "--db", str(V5), "-d", "example.com", "--resolved-only")
+        v4_names = self.run_cli("names", "--db", str(V4), "-d", "example.com", "--resolved-only")
+        # Assert the contents, not only that the two agree: two empty lists
+        # are also equal, and empty is exactly the bug being guarded against.
+        self.assertIn("www.example.com", v5_names)
+        self.assertNotIn("dev.example.com", v5_names, "no DNS record in either fixture")
+        self.assertEqual(v4_names, v5_names)
+
+    def test_resolved_fqdns_accepts_every_dns_label_spelling(self):
+        name = Asset(id=1, type="FQDN", value="www.example.com")
+        addr = Asset(id=2, type="IPAddress", value="93.184.216.34")
+        for label in ("dns_record", "a_record", "aaaa_record", "cname_record"):
+            with self.subTest(label=label):
+                edge = Edge(id=1, type="BasicDNSRelation", label=label,
+                            from_asset=name, to_asset=addr)
+                self.assertEqual(resolved_fqdns([edge]), {1})
+
+    def test_resolved_fqdns_ignores_non_dns_edges(self):
+        name = Asset(id=1, type="FQDN", value="www.example.com")
+        svc = Asset(id=2, type="Service", value="svc-443-www")
+        edge = Edge(id=1, type="PortRelation", label="port", from_asset=name, to_asset=svc)
+        self.assertEqual(resolved_fqdns([edge]), set())
 
 
 class TestLibraryApi(unittest.TestCase):
