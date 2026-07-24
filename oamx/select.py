@@ -9,7 +9,6 @@ from datetime import datetime
 from .model import Asset, Edge, merge_assets, normalise_fqdn
 
 DEFAULT_SCOPE_DEPTH = 2
-DNS_LABEL = "dns_record"
 PORT_LABEL = "port"
 
 
@@ -71,10 +70,16 @@ def compute_scope(
 
 
 def resolved_fqdns(edges: list[Edge]) -> set[int]:
-    """Ids of FQDNs with a DNS record pointing at something."""
+    """Ids of FQDNs with a DNS record pointing at something.
+
+    Defers to ``Edge.is_dns`` rather than matching v5's ``dns_record`` label
+    directly, because v4 names its DNS edges after the record type instead
+    (``a_record``, ``cname_record``). Matching one spelling makes
+    ``--resolved-only`` discard every name in a v4 database and exit 0.
+    """
     out: set[int] = set()
     for e in edges:
-        if e.label == DNS_LABEL and e.from_asset.type == "FQDN":
+        if e.is_dns and e.from_asset.type == "FQDN":
             out.add(e.from_asset.id)
     return out
 
