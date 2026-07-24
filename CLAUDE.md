@@ -52,4 +52,14 @@ One skill per file, no stacking. Where a rule spans modules the skills cross-ref
 
 The hook only fires for files inside this repository. That guard matters: a session can hold more than one repo, and a bare `tests/*` pattern would otherwise pull oamx's skills into an unrelated project's test edits.
 
+A second hook, `session-start.sh`, runs at `SessionStart` and reports the one thing this file cannot: which branch you are actually on. "Do not work on `main`" is only actionable if you know you are on `main`, and by the time an edit reveals it you have already made it.
+
+Both hooks fail open — missing `jq`, unexpected stdin, or an absent skill file all exit 0 with no output. A `PreToolUse` hook that failed closed would block the edit it was meant to inform. That also makes silent breakage their natural failure mode, so they carry their own tests:
+
+```bash
+.claude/hooks/test-hooks.sh
+```
+
+Bash and `jq`, no other dependencies, and CI runs it on every pull request alongside `shellcheck`. If you change a hook, change its tests.
+
 If a hook does not fire in your session, run `/hooks` once or restart — the watcher only sees `.claude/settings.json` if it existed at session start. You can always load a skill by name with the `Skill` tool.
