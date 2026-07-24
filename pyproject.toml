@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oamx"
+version = "0.1.0"
+description = "Read the OWASP Amass asset database and pipe it into everything else"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+keywords = ["amass", "osint", "recon", "attack-surface", "bug-bounty", "open-asset-model"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+]
+
+# No runtime dependencies. This is deliberate: it is a recon-pipeline tool,
+# and a recon pipeline that breaks on a transitive dependency resolution is
+# worse than no tool at all.
+dependencies = []
+
+[project.optional-dependencies]
+crewai = ["crewai>=0.80", "pydantic>=2"]
+
+[project.scripts]
+oamx = "oamx.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/coolhandle01/oamx"
+Issues = "https://github.com/coolhandle01/oamx/issues"
+
+[tool.setuptools.packages.find]
+include = ["oamx*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
