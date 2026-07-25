@@ -27,11 +27,11 @@ Python 3.10 is the `requires-python` floor and CI runs 3.10 through 3.13. Then r
 .venv/bin/ruff check .
 .venv/bin/mypy
 .venv/bin/pylint oamx
-.venv/bin/pytest
+.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=92
 .claude/hooks/test-hooks.sh
 ```
 
-`pytest` runs with branch coverage on by default, wired in `[tool.pytest.ini_options]`. `mypy` runs `--strict` against `oamx/`. `pylint` is scoped to design and length checks and gates on a score, not on style — ruff owns style.
+The coverage flags are spelled out rather than sitting in `addopts`, because the sdist ships this suite for downstream packagers and they have `pytest` but no reason to have `pytest-cov` - in `addopts` those flags hand them an argparse error instead of a test run. Bare `.venv/bin/pytest` works and skips the gate; CI always applies it. `mypy` runs `--strict` against `oamx/`. `pylint` is scoped to design and length checks and gates on a score, not on style — ruff owns style.
 
 `ruff format` is deliberately **not** enforced. The source is hand-wrapped: aligned `argparse` calls, deliberate string continuations. Running the formatter rewrites ten files to no benefit. If that ever changes it should be its own PR with its own diff, never a drive-by.
 

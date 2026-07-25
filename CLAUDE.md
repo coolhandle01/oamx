@@ -27,7 +27,7 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 - **Branch**: cut from current `main`, named `<type>/<short-description>` where `<type>` matches the commit type (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`). Do not work on `main`.
 - **Commit**: Conventional Commits — `<type>(<scope>)?: <subject>`, lowercase imperative subject.
 - **Test-first.** For a bug fix, commit the failing test on its own first, with the failure output in the commit message, then commit the fix. The history should show the bug, not just its absence.
-- **Before you push**: run the full stack from CONTRIBUTING's "Before you commit" — `ruff check .`, `mypy`, `pylint oamx`, `pytest`, `.claude/hooks/test-hooks.sh` — inside a `.venv` with `pip install -e ".[dev]"`. Then `git diff origin/main --stat` to confirm only what you meant to change is staged. Running the linters is part of the work, not a formality someone else does in review.
+- **Before you push**: run the full stack from CONTRIBUTING's "Before you commit" — `ruff check .`, `mypy`, `pylint oamx`, `pytest` with the coverage flags, `.claude/hooks/test-hooks.sh` — inside a `.venv` with `pip install -e ".[dev]"`. Then `git diff origin/main --stat` to confirm only what you meant to change is staged. Running the linters is part of the work, not a formality someone else does in review.
 - **Never** force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit plain-words authorisation in the immediately preceding message. `--force-with-lease` is no exception.
 - Never put session URLs (`https://claude.ai/code/session_...`) in commit messages or PR bodies — they reference private conversations.
 

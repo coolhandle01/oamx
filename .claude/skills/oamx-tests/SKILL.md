@@ -6,10 +6,11 @@ description: pytest with branch coverage, built on two synthetic Amass databases
 # oamx test discipline
 
 ```bash
-.venv/bin/pytest
+.venv/bin/pytest                       # the suite
+.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=92
 ```
 
-Branch coverage, the `term-missing` report and the `--cov-fail-under` gate all come from `[tool.pytest.ini_options]`, so the bare command is the whole thing. Dev tooling comes from `pip install -e ".[dev]"`.
+The coverage flags are deliberately not in `addopts`. The sdist ships this suite so a downstream packager can verify the build they are shipping, and a packager has `pytest` but no reason to have `pytest-cov` - in `addopts` those flags give them an argparse error rather than a test run. So bare `pytest` runs the suite, and the gate lives in the invocation that CONTRIBUTING and `tests.yml` both use. Dev tooling comes from `pip install -e ".[dev]"`.
 
 Branch coverage rather than line coverage is deliberate. This codebase is mostly branching — schema candidate lists, filter guards, degrade-rather-than-raise fallbacks — and line coverage would call a half-tested `if` fully covered. On lines you write or change the bar is both branches exercised, not the project floor.
 

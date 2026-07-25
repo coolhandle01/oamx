@@ -75,15 +75,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Branch coverage, not line coverage. This codebase is mostly branching -
-# schema candidates, filter guards, degrade-rather-than-raise fallbacks - and
-# line coverage would call a half-tested `if` fully covered.
-addopts = """
-    --cov=oamx
-    --cov-branch
-    --cov-report=term-missing
-    --cov-fail-under=92
-"""
+# Coverage flags are deliberately NOT in addopts. The sdist ships this suite so
+# a downstream packager can verify the build they are shipping, and a packager
+# has pytest but no reason to have pytest-cov - addopts would hand them an
+# argparse error instead of a test run, which is worse than shipping nothing.
+# The gate lives in the invocation instead: see CONTRIBUTING and tests.yml.
 
 [tool.coverage.run]
 branch = true
