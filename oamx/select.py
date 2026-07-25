@@ -5,8 +5,12 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from .model import Asset, Edge, merge_assets, normalise_fqdn
+
+if TYPE_CHECKING:  # annotation only - importing AssetDB at runtime is not needed
+    from .reader import AssetDB
 
 DEFAULT_SCOPE_DEPTH = 2
 PORT_LABEL = "port"
@@ -186,7 +190,7 @@ def _source_ok(a: Asset, f: Filters) -> bool:
     return True
 
 
-def build(db, f: Filters) -> Selection:
+def build(db: AssetDB, f: Filters) -> Selection:
     """Load the graph once and derive everything else from it."""
     assets = db.assets_by_id(None)
     edges = db.edges(assets=assets)

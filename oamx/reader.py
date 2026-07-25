@@ -345,8 +345,10 @@ class AssetDB:
             params += types
 
         col = self.c_eupdated if since_field == "updated" else self.c_ecreated
+        # Spelled out rather than hoisted into a `push_down` flag so the type
+        # checker can see that `since` is not None inside the branch.
         push_down = since is not None and self._sql_time_ok and col is not None
-        if push_down:
+        if since is not None and push_down:
             where.append(f'datetime("{col}") >= datetime(?)')
             params.append(since.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
 
