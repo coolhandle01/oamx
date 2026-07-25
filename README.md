@@ -73,17 +73,25 @@ oamx json -d example.com > assets.jsonl
 database        /home/you/.config/amass/amass.sqlite
 layout          v5 (entities/edges)
 provenance      yes
-time filtering  SQL
-assets          16
+assets          22
 
-  FQDN                 7
+  FQDN                 8
+  Service              3
   IPAddress            3
+  Identifier           2
   URL                  1
   TLSCertificate       1
-  Service              1
+  SomeFutureAssetType  1
   Netblock             1
+  ContactRecord        1
   AutonomousSystem     1
 ```
+
+That is real output from the test fixture rather than an illustration, and
+everything below the `database` line is asserted against a live run — see
+`tests/test_readme.py`. `SomeFutureAssetType` is in the fixture deliberately:
+an asset type this release has never heard of still gets counted, and still
+comes out of `oamx json` with a usable value.
 
 ---
 
@@ -217,11 +225,13 @@ Stated plainly, because a recon tool that overstates itself is worse than useles
 - **SQLite only.** Amass also supports PostgreSQL and Neo4j. The reader is
   written behind an interface so those are clean additions, but shipping
   untested database drivers would defeat the point.
-- **Field names are verified for `FQDN`, `IPAddress` and `Service`** against the
-  Open Asset Model documentation. The remaining ~18 asset types use a
-  best-effort key list with a generic fallback. If one of them extracts the
-  wrong field for you, that's a one-line fix in `model.py` and a very welcome
-  issue.
+- **Field names are verified for `FQDN`, `IPAddress`, `Service` and
+  `Identifier`** against the Open Asset Model documentation and, for
+  `Identifier`, the struct in `owasp-amass/open-asset-model` itself. The
+  remaining ~17 asset types use a best-effort key list with a generic
+  fallback. If one of them extracts the wrong field for you, that's a one-line
+  fix in `model.py` and a very welcome issue — `Identifier` was exactly that,
+  reporting the `unique_id` dedupe key where the value lives in `id`.
 - **The whole graph is loaded into memory** to make scoping and merging correct.
   Fine for target-scoped databases; if yours has millions of entities, this will
   want a streaming path.
@@ -243,13 +253,23 @@ guesses.
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
 ```
 
-50 tests, no dependencies, under a second. The suite has been mutation-tested:
-17 deliberate regressions injected into the scoping, merging, provenance,
-filtering and read-only guarantees, 17 caught. If you add behaviour, break it on
-purpose first and check something goes red.
+122 tests in about a second, gated on branch coverage rather than line
+coverage — this codebase is mostly branching, and line coverage calls a
+half-tested `if` fully covered. `ruff`, `mypy --strict` and `pylint` run from
+the same `dev` extra, so what CI runs and what you run cannot drift; see
+`CONTRIBUTING.md` for the order.
+
+The dev extra is not part of the zero-dependency promise, which is about what
+an *installed* oamx pulls in. CI proves that separately by installing the
+package alone and asserting nothing third-party came with it.
+
+If you add behaviour, break it on purpose first and check something goes red.
+A test that has never been seen to fail has not been shown to test anything.
 
 ## Upstream
 
