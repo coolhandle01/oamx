@@ -12,6 +12,19 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Pinned deliberately. A floating ruff turns "someone released a new rule"
+      # into "main is red", which is not a signal about this repository.
+      - run: pipx run ruff==0.16.0 check .
+      # `ruff format` is not enforced. The source is hand-wrapped - aligned
+      # argparse calls, deliberate string continuations - and the formatter
+      # would rewrite ten files to no benefit. Revisit as its own change if
+      # ever, never as a drive-by.
+
   hooks:
     name: hooks
     runs-on: ubuntu-latest
