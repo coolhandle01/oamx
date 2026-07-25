@@ -26,6 +26,18 @@ dependencies = []
 
 [project.optional-dependencies]
 crewai = ["crewai>=0.80", "pydantic>=2"]
+# Development only. None of this is imported by oamx at runtime - the
+# zero-dependency promise above is about what an installed oamx pulls in, and
+# the `no-deps` CI job proves it independently of anything listed here.
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "mypy>=1.11",
+    "pylint>=3.2",
+    # Pinned exactly: a floating linter turns a new upstream rule into a red
+    # main, which is not a signal about this repository.
+    "ruff==0.16.0",
+]
 
 [project.scripts]
 oamx = "oamx.cli:main"
@@ -55,3 +67,91 @@ target-version = "py310"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# Branch coverage, not line coverage. This codebase is mostly branching -
+# schema candidates, filter guards, degrade-rather-than-raise fallbacks - and
+# line coverage would call a half-tested `if` fully covered.
+addopts = """
+    --cov=oamx
+    --cov-branch
+    --cov-report=term-missing
+    --cov-fail-under=78
+"""
+
+[tool.coverage.run]
+branch = true
+source = ["oamx"]
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["oamx"]
+
+[[tool.mypy.overrides]]
+# The framework adapters are optional extras, imported lazily inside the
+# function that needs them. Without stubs installed mypy cannot see them, and
+# installing crewai to type-check a 15-line adapter is not a trade worth making.
+module = ["crewai.*", "pydantic"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Applies to the module doing the subclassing, not the one being imported:
+# without stubs those base classes resolve to Any, and strict mode otherwise
+# refuses to let OamxInput/OamxTool inherit from them.
+module = "oamx.integrations"
+disallow_subclassing_any = false
+
+[tool.pylint.main]
+# Ratchet, not an aspiration. Set just under the score the tree scores today,
+# so it catches regression rather than demanding an immediate refactor.
+fail-under = 9.9
+py-version = "3.10"
+
+[tool.pylint.format]
+max-line-length = 100
+# reader.py is ~500 lines. This flags a module that is getting away from us
+# without demanding one be split today.
+max-module-lines = 600
+
+[tool.pylint.design]
+# Likewise sized against the current shape plus headroom. AssetDB legitimately
+# carries one attribute per introspected table and column, and `edges()` is the
+# widest function in the tree; both are noted in CONTRIBUTING as the two places
+# that would most benefit from decomposition.
+max-args = 12
+max-positional-arguments = 12
+max-locals = 25
+max-attributes = 22
+max-branches = 15
+max-statements = 60
+max-public-methods = 25
+max-returns = 8
+
+[tool.pylint.typecheck]
+# Optional extras, not installed in the lint environment.
+ignored-modules = ["crewai", "crewai.tools", "pydantic"]
+
+[tool.pylint."messages control"]
+disable = [
+    # Ruff owns style; pylint is here for the design and length checks.
+    "missing-module-docstring",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "superfluous-parens",
+    "too-few-public-methods",
+    # Deliberate and documented at each site: optional extras are imported
+    # lazily, and model/reader break their cycle with a function-local import.
+    "import-outside-toplevel",
+    "cyclic-import",
+    # Known wart, tracked rather than silenced everywhere: select.build reaches
+    # into AssetDB._load_sources. Promote it to a public method to fix properly.
+    "protected-access",
+]
