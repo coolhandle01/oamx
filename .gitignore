@@ -16,3 +16,9 @@ dist/
 *.sqlite
 *.sqlite3
 *.db
+
+# Coverage artefacts, written by every local `pytest` run.
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
