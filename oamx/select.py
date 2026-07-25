@@ -179,7 +179,9 @@ def _source_ok(a: Asset, f: Filters) -> bool:
         return False
     if f.sources and not (names & set(f.sources)):
         return False
-    if f.min_confidence and a.max_confidence < f.min_confidence:
+    # Kept as a guard clause to match the two checks above; collapsing just this
+    # one into a negated compound return would make the three read differently.
+    if f.min_confidence and a.max_confidence < f.min_confidence:  # noqa: SIM103
         return False
     return True
 

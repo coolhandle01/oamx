@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -131,9 +132,12 @@ class TestSchemaIntrospection(unittest.TestCase):
         self.assertIn("no such database", str(ctx.exception))
 
     def test_opens_read_only(self):
-        with AssetDB(V5) as db:
-            with self.assertRaises(Exception):
-                db.conn.execute("DELETE FROM entities")
+        # Specifically OperationalError, not bare Exception: a typo in the SQL
+        # would also raise, and would look exactly like the connection refusing
+        # the write.
+        with AssetDB(V5) as db, self.assertRaises(sqlite3.OperationalError) as ctx:
+            db.conn.execute("DELETE FROM entities")
+        self.assertIn("readonly", str(ctx.exception))
 
 
 # --- names ------------------------------------------------------------------

@@ -1,0 +1,23 @@
+version: 2
+
+updates:
+  # The actions in .github/workflows are the only pinned third-party code in
+  # this repository. oamx itself declares no runtime dependencies, so there is
+  # no pip ecosystem worth watching: the two optional extras (crewai, pydantic)
+  # are open ranges resolved at install time by whoever installs them, not
+  # pinned here, and dependabot cannot usefully bump a lower bound.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      # Conventional Commits are enforced by the `commit messages` job, and a
+      # dependabot PR is checked like any other. Without this prefix every one
+      # of them would fail cz check.
+      prefix: "chore"
+    groups:
+      # One PR for a week's action bumps rather than five. These are almost
+      # always uncontroversial patch bumps to first-party actions.
+      actions:
+        patterns: ["*"]
