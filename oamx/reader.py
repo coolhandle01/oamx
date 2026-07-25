@@ -19,7 +19,7 @@ import json
 import os
 import sqlite3
 import sys
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
@@ -302,13 +302,20 @@ class AssetDB:
         if atype == "FQDN":
             value = normalise_fqdn(value)
 
+        # `.keys()` is load-bearing here. `row` is a sqlite3.Row, not a dict, and
+        # Row.__contains__ iterates *values*, so `"created" in row` is False even
+        # when that column exists. Rewriting these to `in row` nulls out every
+        # timestamp and silently breaks --since, --new and the merge window.
+        created = row["created"] if "created" in row.keys() else None  # noqa: SIM118
+        updated = row["updated"] if "updated" in row.keys() else None  # noqa: SIM118
+
         return Asset(
             id=row["eid"],
             type=atype,
             value=value,
             attrs=content,
-            first_seen=str(row["created"]) if "created" in row.keys() and row["created"] else None,
-            last_seen=str(row["updated"]) if "updated" in row.keys() and row["updated"] else None,
+            first_seen=str(created) if created else None,
+            last_seen=str(updated) if updated else None,
         )
 
     def _asset_select(self) -> str:

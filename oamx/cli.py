@@ -47,16 +47,18 @@ def _split_list(values: list[str] | None) -> list[str]:
 
 def build_parser() -> argparse.ArgumentParser:
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--db", metavar="PATH", help="path to the Amass SQLite database (default: auto-discover)")
+    common.add_argument("--db", metavar="PATH",
+                        help="path to the Amass SQLite database (default: auto-discover)")
     common.add_argument("-d", "--domain", action="append", metavar="DOMAIN",
                         help="restrict to this root domain (repeatable, comma-separated)")
     common.add_argument("--scope-depth", type=int, default=None, metavar="N",
                         help="graph hops used to scope non-name assets to -d "
-                             "(default: {}, 0 disables)".format(DEFAULT_SCOPE_DEPTH))
+                             f"(default: {DEFAULT_SCOPE_DEPTH}, 0 disables)")
     common.add_argument("--since", metavar="DUR",
                         help="only assets seen within this window, e.g. 24h, 7d, 2w")
     common.add_argument("--new", action="store_true",
-                        help="with --since, match first-seen instead of last-seen (i.e. genuinely new)")
+                        help="with --since, match first-seen instead of last-seen "
+                             "(i.e. genuinely new)")
     common.add_argument("--source", action="append", metavar="NAME",
                         help="only assets asserted by this Amass plugin (repeatable)")
     common.add_argument("--exclude-source", action="append", metavar="NAME",
@@ -77,7 +79,8 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    p.add_argument("--version", action="version", version=f"oamx {__version__} (schema {SCHEMA_VERSION})")
+    p.add_argument("--version", action="version",
+                   version=f"oamx {__version__} (schema {SCHEMA_VERSION})")
     sub = p.add_subparsers(dest="command", metavar="COMMAND")
 
     descriptions = {

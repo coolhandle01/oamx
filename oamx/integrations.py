@@ -116,7 +116,10 @@ def crewai_tool(default_db: str | None = None, **defaults: Any):
     from pydantic import BaseModel, Field
 
     class OamxInput(BaseModel):
-        view: str = Field(default="names", description="names, ips, cidrs, asns, urls, certs, services, orgs, all")
+        view: str = Field(
+            default="names",
+            description="names, ips, cidrs, asns, urls, certs, services, orgs, all",
+        )
         domains: list[str] = Field(default_factory=list, description="root domains to scope to")
         since: str | None = Field(default=None, description='time window, e.g. "24h"')
         new_only: bool = Field(default=False, description="only newly discovered assets")

@@ -52,6 +52,19 @@ Naive datetimes are stamped UTC on the way out. Everything downstream compares a
 - **Interpolated identifiers, bound values.** Table and column names come from introspection so they must be interpolated, and they are always wrapped in double quotes. Anything originating from user input is a `?` parameter. Never interpolate a value.
 - **Only `SourceProperty` tags are provenance.** The tag tables carry `SimpleProperty` and `VulnProperty` rows too, and a `VulnProperty` has a `name` key that looks exactly like a source name if you are not checking `ttype`. There is a test for this.
 
+## Rows are not dicts
+
+`self.conn.row_factory = sqlite3.Row`, and a `Row` only looks dict-like. It supports `row["col"]` and `row.keys()`, but `__contains__` iterates **values**, not keys:
+
+```python
+"created" in row.keys()   # True  - the column exists
+"created" in row          # False - there is no *value* equal to "created"
+```
+
+So the membership test before reading an optional column has to go through `.keys()`. Ruff's SIM118 flags that as `key in dict.keys()` and offers to rewrite it; taking the offer nulls out `first_seen` and `last_seen` on every asset and silently breaks `--since`, `--new` and the merge window. The two call sites carry `# noqa: SIM118` and a comment saying why. Leave them.
+
+The general shape: when a linter suggests a simplification, check the receiver's actual type first. `Row` is the one in this module that will bite.
+
 ## Dangling references are normal
 
 Amass leaves edges pointing at entities that are not there. `edges()` skips a row whose endpoints do not both resolve rather than raising or synthesising a placeholder. Keep that behaviour for any new relation-shaped read.
@@ -63,4 +76,5 @@ Amass leaves edges pointing at entities that are not there. `edges()` skips a ro
 - `_parse_ts` raising, or a caller treating its `None` as "drop this".
 - An unchunked `IN (...)` built from a set of ids.
 - Assuming `content` is a dict without checking — it is parsed from a JSON text column and can be anything, including `null` or a bare string. Both `_row_to_asset` and `edges()` guard for this.
+- Treating a `sqlite3.Row` as a dict, in particular `"col" in row`. See above; the linter will suggest it and it is wrong.
 - Adding a discovery path to `default_db_paths` that follows symlinks or globs recursively. It is a convenience for the common install layout, not a filesystem search.

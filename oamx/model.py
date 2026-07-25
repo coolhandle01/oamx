@@ -201,9 +201,7 @@ def merge_assets(assets: list[Asset]) -> list[Asset]:
         by_name = {s.name: s for s in existing.sources}
         for s in asset.sources:
             prior = by_name.get(s.name)
-            if prior is None:
-                by_name[s.name] = s
-            elif (s.confidence or 0) > (prior.confidence or 0):
+            if prior is None or (s.confidence or 0) > (prior.confidence or 0):
                 by_name[s.name] = s
         existing.sources = sorted(by_name.values(), key=lambda s: s.name)
         for k, v in asset.attrs.items():
