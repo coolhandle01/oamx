@@ -1,5 +1,7 @@
 # oamx - AI Contributor Guide
 
+**Read `CONTRIBUTING.md` first.** It carries the universal rules (minimal diff, linter findings as engineering signal, no bare suppressions, FIXME/TODO grammar, surface concerns), the "Before you commit" CI parity stack, the test-first discipline, and the safety invariants. Everything below is AI-contributor-specific layered on top.
+
 ## The rule the whole codebase is downstream of
 
 **An empty result that exits 0 is the worst thing this tool can do.**
@@ -25,7 +27,7 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 - **Branch**: cut from current `main`, named `<type>/<short-description>` where `<type>` matches the commit type (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`). Do not work on `main`.
 - **Commit**: Conventional Commits — `<type>(<scope>)?: <subject>`, lowercase imperative subject.
 - **Test-first.** For a bug fix, commit the failing test on its own first, with the failure output in the commit message, then commit the fix. The history should show the bug, not just its absence.
-- **Before you push**: `python3 -m unittest discover -s tests` must be green, and `git diff origin/main --stat` should show only what you meant to change.
+- **Before you push**: run the full stack from CONTRIBUTING's "Before you commit" — `ruff check .`, `mypy`, `pylint oamx`, `pytest`, `.claude/hooks/test-hooks.sh` — inside a `.venv` with `pip install -e ".[dev]"`. Then `git diff origin/main --stat` to confirm only what you meant to change is staged. Running the linters is part of the work, not a formality someone else does in review.
 - **Never** force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit plain-words authorisation in the immediately preceding message. `--force-with-lease` is no exception.
 - Never put session URLs (`https://claude.ai/code/session_...`) in commit messages or PR bodies — they reference private conversations.
 
@@ -46,7 +48,7 @@ PyPI upload uses Trusted Publishing, so there is no API token in the repository 
 
 ## Invariants that are not negotiable
 
-- **Zero runtime dependencies.** `pyproject.toml` declares none, the test suite is stdlib `unittest`, and CI installs nothing. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. Framework adapters (`integrations.crewai_tool`) import lazily inside the function.
+- **Zero runtime dependencies.** `pyproject.toml` declares none. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. Framework adapters (`integrations.crewai_tool`) import lazily inside the function. Dev tooling lives in the `dev` extra and is not part of that promise; the `no-deps` CI job proves the promise directly by installing the package alone and asserting nothing third-party came with it.
 - **The database is opened read-only**, via a `file:...?mode=ro` URI, because people will point this at a database while Amass is mid-enumeration. There is a test that a `DELETE` raises. Do not relax it.
 - **oamx never sends traffic.** It reads what Amass already collected. This is the property that makes it safe to hand to an agent, and it is stated as a promise in the README and the tool description.
 - **Python 3.10 is the floor** (`requires-python`), and CI runs 3.10 through 3.13.
@@ -61,7 +63,7 @@ Skills under `.claude/skills/` auto-load via a `PreToolUse` hook on `Write`/`Edi
 | `oamx-reader` | `oamx/reader.py` | Schema tolerance — introspect rather than pin, candidate column lists, read-only access, forgiving timestamp parsing |
 | `oamx-select` | `oamx/select.py` | Scoping and filter semantics — suffix-matched names, graph-walked everything else, and the order filters must run in |
 | `oamx-cli` | `oamx/cli.py`, `oamx/integrations.py`, `oamx/__main__.py` | The pipe contract — stdout is data, exit codes, and keeping the CLI and library surfaces from drifting apart |
-| `oamx-tests` | anything under `tests/` | Fixture discipline, and the rule that layout-sensitive behaviour is asserted against both database generations |
+| `oamx-tests` | anything under `tests/` | pytest fixtures, branch coverage, and the rule that layout-sensitive behaviour is asserted against both database generations |
 
 One skill per file, no stacking. Where a rule spans modules the skills cross-reference each other rather than both claiming it.
 
