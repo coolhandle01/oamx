@@ -44,9 +44,19 @@ jobs:
           name: dist
           path: dist/
       # The suite runs from a source checkout; this proves the *built artefact*
-      # installs and that the console script is wired up.
+      # installs and that both entry points are wired up. They are separate
+      # paths - the console script goes through [project.scripts] to
+      # oamx.cli:main, `python -m` through oamx/__main__.py - so a wheel can
+      # ship one working and the other broken.
       - run: pip install dist/*.whl
       - run: oamx --version
+      - name: both entry points agree
+        run: |
+          script=$(oamx --version)
+          module=$(python -m oamx --version)
+          echo "console script: $script"
+          echo "python -m     : $module"
+          [ "$script" = "$module" ] || { echo "entry points disagree"; exit 1; }
       - name: a missing database is a clean error, not a traceback
         run: |
           set +e

@@ -53,7 +53,7 @@ Every filter in this module keeps the asset when it cannot evaluate its own cond
 
 ## Edge labels belong to the model
 
-`resolved_fqdns` asks `Edge.is_dns`, not `e.label == "dns_record"`. v4 names its DNS edges after the record type (`a_record`, `cname_record`), so matching one spelling makes `--resolved-only` discard every hostname in a v4 database and exit 0. That was the one shipped bug in this repository.
+`resolved_fqdns` asks `Edge.is_dns`, not `e.label == "dns_record"`. v4 names its DNS edges after the record type (`a_record`, `cname_record`), so matching one spelling makes `--resolved-only` discard every hostname in a v4 database and exit 0.
 
 The general rule lives in `oamx-model`: version-specific spellings are absorbed by `Edge` properties, and consumers use the properties. If a new filter needs to know something about an edge, add a property there rather than a literal here.
 

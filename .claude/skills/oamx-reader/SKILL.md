@@ -37,6 +37,8 @@ People point this at a database while Amass is mid-enumeration. A write lock or 
 
 `test_opens_read_only` pins it. Do not relax the URI, do not add a write path, do not add a `mode=rw` escape hatch for convenience.
 
+**`sqlite3.connect` is lazy.** A file that is not a database opens without complaint and only fails on the first query, which is the one inside `_introspect`. `__init__` wraps that call and re-raises as `OamxError`, because unwrapped it reaches the user as a bare `sqlite3.DatabaseError` traceback — `main` catches `OamxError` only — and silently aborts `open_db`'s discovery loop, which skips `OamxError` only. Discovery globs `*.sqlite` / `*.sqlite3` / `*.db` and searches the working directory, so a stray file with one of those names is ordinary, not exotic. Any new query path that can run before the caller has a usable `AssetDB` needs the same treatment.
+
 ## Parse timestamps forgivingly
 
 `_parse_ts` handles what GORM emits across versions: Go nanosecond precision that `datetime.fromisoformat` rejects, `Z` suffixes, space-separated dates, bare epochs, and `None`. It returns `None` rather than raising on anything it cannot read.

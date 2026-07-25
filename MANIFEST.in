@@ -1,0 +1,4 @@
+# Ship the suite so a downstream packager can verify the build they are
+# shipping, rather than taking our word for it or fetching from git.
+include README.md CONTRIBUTING.md LICENSE
+recursive-include tests *.py

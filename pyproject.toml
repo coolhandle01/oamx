@@ -25,7 +25,6 @@ classifiers = [
 dependencies = []
 
 [project.optional-dependencies]
-crewai = ["crewai>=0.80", "pydantic>=2"]
 # Development only. None of this is imported by oamx at runtime - the
 # zero-dependency promise above is about what an installed oamx pulls in, and
 # the `no-deps` CI job proves it independently of anything listed here.
@@ -49,6 +48,12 @@ Issues = "https://github.com/coolhandle01/oamx/issues"
 [tool.setuptools.packages.find]
 include = ["oamx*"]
 
+# Ship the typing marker so importers get oamx's annotations instead of Any.
+# The package is mypy --strict clean; without this, none of that reaches a
+# consumer.
+[tool.setuptools.package-data]
+oamx = ["py.typed"]
+
 # Commit messages are Conventional Commits and CI checks them. `cz bump` also
 # keeps oamx/__init__.py's __version__ in step with [project].version, which
 # are otherwise two places declaring the same number.
@@ -70,44 +75,38 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Branch coverage, not line coverage. This codebase is mostly branching -
-# schema candidates, filter guards, degrade-rather-than-raise fallbacks - and
-# line coverage would call a half-tested `if` fully covered.
-addopts = """
-    --cov=oamx
-    --cov-branch
-    --cov-report=term-missing
-    --cov-fail-under=78
-"""
+# Coverage flags are deliberately NOT in addopts. The sdist ships this suite so
+# a downstream packager can verify the build they are shipping, and a packager
+# has pytest but no reason to have pytest-cov - addopts would hand them an
+# argparse error instead of a test run, which is worse than shipping nothing.
+# The gate lives in the invocation instead: see CONTRIBUTING and tests.yml.
 
 [tool.coverage.run]
 branch = true
 source = ["oamx"]
+# __main__.py is the `python -m oamx` entry point: two imports and a
+# `if __name__` guard that is false whenever the module is imported. An
+# in-process test would execute the imports and prove nothing, so it is
+# verified where an entry-point regression would actually surface - against
+# the built wheel in release.yml and the bare install in tests.yml. Measuring
+# it here would only ever report 0% and make the total mean less.
+omit = ["oamx/__main__.py"]
 
 [tool.coverage.report]
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+    # False whenever the module is imported, true only under `python -m`, so
+    # it cannot be covered by an in-process test. That entry point is verified
+    # against the built wheel in release.yml and tests.yml instead - which is
+    # where an entry-point regression would actually show up.
+    'if __name__ == "__main__":',
 ]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 files = ["oamx"]
-
-[[tool.mypy.overrides]]
-# The framework adapters are optional extras, imported lazily inside the
-# function that needs them. Without stubs installed mypy cannot see them, and
-# installing crewai to type-check a 15-line adapter is not a trade worth making.
-module = ["crewai.*", "pydantic"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-# Applies to the module doing the subclassing, not the one being imported:
-# without stubs those base classes resolve to Any, and strict mode otherwise
-# refuses to let OamxInput/OamxTool inherit from them.
-module = "oamx.integrations"
-disallow_subclassing_any = false
 
 [tool.pylint.main]
 # Ratchet, not an aspiration. Set just under the score the tree scores today,
@@ -134,10 +133,6 @@ max-branches = 15
 max-statements = 60
 max-public-methods = 25
 max-returns = 8
-
-[tool.pylint.typecheck]
-# Optional extras, not installed in the lint environment.
-ignored-modules = ["crewai", "crewai.tools", "pydantic"]
 
 [tool.pylint."messages control"]
 disable = [

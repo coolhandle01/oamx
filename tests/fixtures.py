@@ -80,28 +80,82 @@ ENTITIES = [
     (1, "FQDN", {"name": "example.com"}, OLD, RECENT),
     (2, "FQDN", {"name": "www.example.com"}, OLD, RECENT),
     (3, "FQDN", {"name": "api.example.com"}, MID, MID),
-    (4, "FQDN", {"name": "dev.example.com"}, OLD, OLD),          # never resolved
+    (4, "FQDN", {"name": "dev.example.com"}, OLD, OLD),  # never resolved
     (5, "IPAddress", {"address": "93.184.216.34", "type": "IPv4"}, OLD, RECENT),
     (6, "IPAddress", {"address": "2606:2800:220:1::1946", "type": "IPv6"}, OLD, RECENT),
     (7, "Netblock", {"cidr": "93.184.216.0/24", "type": "IPv4"}, OLD, RECENT),
     (8, "AutonomousSystem", {"number": 15133}, OLD, RECENT),
-    (9, "Service", {"unique_id": "svc-443-www", "service_type": "https",
-                    "output": "HTTP/1.1 200 OK", "output_length": 17,
-                    "attributes": {"server": "ECS"}}, RECENT, RECENT),
-    (17, "Service", {"unique_id": "svc-80-www", "service_type": "http",
-                     "output": "HTTP/1.1 301 Moved", "output_length": 18,
-                     "attributes": {"server": "ECS"}}, RECENT, RECENT),
-    (18, "Service", {"unique_id": "svc-22-api", "service_type": "ssh",
-                     "output": "SSH-2.0-OpenSSH_9.6", "output_length": 19}, RECENT, RECENT),
-    (10, "TLSCertificate", {"serial_number": "0A1B2C3D",
-                            "subject_common_name": "*.example.com"}, RECENT, RECENT),
-    (11, "FQDN", {"name": "other.co.uk"}, OLD, RECENT),          # a different target
+    (
+        9,
+        "Service",
+        {
+            "unique_id": "svc-443-www",
+            "service_type": "https",
+            "output": "HTTP/1.1 200 OK",
+            "output_length": 17,
+            "attributes": {"server": "ECS"},
+        },
+        RECENT,
+        RECENT,
+    ),
+    (
+        17,
+        "Service",
+        {
+            "unique_id": "svc-80-www",
+            "service_type": "http",
+            "output": "HTTP/1.1 301 Moved",
+            "output_length": 18,
+            "attributes": {"server": "ECS"},
+        },
+        RECENT,
+        RECENT,
+    ),
+    (
+        18,
+        "Service",
+        {
+            "unique_id": "svc-22-api",
+            "service_type": "ssh",
+            "output": "SSH-2.0-OpenSSH_9.6",
+            "output_length": 19,
+        },
+        RECENT,
+        RECENT,
+    ),
+    (
+        10,
+        "TLSCertificate",
+        {"serial_number": "0A1B2C3D", "subject_common_name": "*.example.com"},
+        RECENT,
+        RECENT,
+    ),
+    (11, "FQDN", {"name": "other.co.uk"}, OLD, RECENT),  # a different target
     (12, "IPAddress", {"address": "203.0.113.9", "type": "IPv4"}, OLD, RECENT),
-    (13, "FQDN", {"name": "API.Example.COM."}, OLD, RECENT),      # needs normalising
+    (13, "FQDN", {"name": "API.Example.COM."}, OLD, RECENT),  # needs normalising
     (14, "URL", {"url": "https://www.example.com/login"}, RECENT, RECENT),
-    (15, "FQDN", {"name": "cdn.provider.net"}, RECENT, RECENT),   # CNAME target, out of scope
+    (15, "FQDN", {"name": "cdn.provider.net"}, RECENT, RECENT),  # CNAME target, out of scope
     (16, "SomeFutureAssetType", {"widget": "unknowable"}, RECENT, RECENT),
     (19, "FQDN", {"name": "new.example.com"}, RECENT, RECENT),  # genuinely new
+    # Contact vocabulary. OAM's Identifier carries the value in `id` and the
+    # scheme in `id_type`; `unique_id` is a dedupe key, not a human value.
+    # ContactRecord is a bare join node - `discovered_at` is where the contact
+    # was found, so it is a URL and never an address.
+    (
+        20,
+        "Identifier",
+        {"id": "abuse@example.com", "id_type": "email", "unique_id": "email:abuse@example.com"},
+        RECENT,
+        RECENT,
+    ),
+    (
+        21,
+        "Identifier",
+        {"id": "ORG-EX1-RIPE", "id_type": "handle", "unique_id": "handle:ORG-EX1-RIPE"},
+        RECENT,
+        RECENT,
+    ),
+    (22, "ContactRecord", {"discovered_at": "https://rdap.example/entity/1"}, RECENT, RECENT),
 ]
 
 # id, etype, label, extra content, from, to, first_seen, last_seen
@@ -109,14 +163,46 @@ EDGES = [
     (1, "SimpleRelation", "node", {}, 1, 2, OLD, RECENT),
     (2, "SimpleRelation", "node", {}, 1, 3, RECENT, RECENT),
     (3, "SimpleRelation", "node", {}, 1, 4, OLD, OLD),
-    (4, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
-     2, 5, OLD, RECENT),
-    (5, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
-     3, 5, RECENT, RECENT),
-    (6, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 28, "class": 1, "ttl": 300}},
-     1, 6, OLD, RECENT),
-    (7, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 5, "class": 1, "ttl": 60}},
-     2, 15, RECENT, RECENT),
+    (
+        4,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
+        2,
+        5,
+        OLD,
+        RECENT,
+    ),
+    (
+        5,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
+        3,
+        5,
+        RECENT,
+        RECENT,
+    ),
+    (
+        6,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 28, "class": 1, "ttl": 300}},
+        1,
+        6,
+        OLD,
+        RECENT,
+    ),
+    (
+        7,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 5, "class": 1, "ttl": 60}},
+        2,
+        15,
+        RECENT,
+        RECENT,
+    ),
     (8, "SimpleRelation", "ptr_record", {}, 5, 1, OLD, RECENT),
     (9, "SimpleRelation", "contains", {}, 7, 5, OLD, RECENT),
     (10, "SimpleRelation", "announces", {}, 8, 7, OLD, RECENT),
@@ -124,12 +210,28 @@ EDGES = [
     (12, "PortRelation", "port", {"port_number": 80, "protocol": "tcp"}, 2, 17, RECENT, RECENT),
     (16, "PortRelation", "port", {"port_number": 22, "protocol": "tcp"}, 3, 18, RECENT, RECENT),
     (17, "SimpleRelation", "node", {}, 1, 19, RECENT, RECENT),
-    (18, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
-     19, 5, RECENT, RECENT),
+    (
+        18,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
+        19,
+        5,
+        RECENT,
+        RECENT,
+    ),
     (13, "SimpleRelation", "certificate", {}, 9, 10, RECENT, RECENT),
-    (14, "BasicDNSRelation", "dns_record", {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
-     11, 12, OLD, RECENT),
-    (15, "SimpleRelation", "node", {}, 999, 5, OLD, RECENT),      # dangling: must be skipped
+    (
+        14,
+        "BasicDNSRelation",
+        "dns_record",
+        {"header": {"rr_type": 1, "class": 1, "ttl": 300}},
+        11,
+        12,
+        OLD,
+        RECENT,
+    ),
+    (15, "SimpleRelation", "node", {}, 999, 5, OLD, RECENT),  # dangling: must be skipped
 ]
 
 # entity_id -> (source name, confidence)
@@ -174,22 +276,40 @@ def build_v5(path: Path) -> Path:
             conn.execute(
                 "INSERT INTO entity_tags (tag_id, created_at, updated_at, ttype, "
                 "content, entity_id) VALUES (?,?,?,?,?,?)",
-                (tag_id, ts(RECENT), ts(RECENT), "SourceProperty",
-                 json.dumps({"name": name, "confidence": conf}), eid),
+                (
+                    tag_id,
+                    ts(RECENT),
+                    ts(RECENT),
+                    "SourceProperty",
+                    json.dumps({"name": name, "confidence": conf}),
+                    eid,
+                ),
             )
             tag_id += 1
     # A non-source tag, to prove we ignore what we do not understand.
     conn.execute(
         "INSERT INTO entity_tags (tag_id, created_at, updated_at, ttype, content, entity_id) "
         "VALUES (?,?,?,?,?,?)",
-        (tag_id, ts(RECENT), ts(RECENT), "SimpleProperty",
-         json.dumps({"property_name": "last_monitored", "property_value": ts(RECENT)}), 1),
+        (
+            tag_id,
+            ts(RECENT),
+            ts(RECENT),
+            "SimpleProperty",
+            json.dumps({"property_name": "last_monitored", "property_value": ts(RECENT)}),
+            1,
+        ),
     )
     conn.execute(
         "INSERT INTO entity_tags (tag_id, created_at, updated_at, ttype, content, entity_id) "
         "VALUES (?,?,?,?,?,?)",
-        (tag_id + 1, ts(RECENT), ts(RECENT), "VulnProperty",
-         json.dumps({"name": "CVE-2026-0001", "severity": "high"}), 2),
+        (
+            tag_id + 1,
+            ts(RECENT),
+            ts(RECENT),
+            "VulnProperty",
+            json.dumps({"name": "CVE-2026-0001", "severity": "high"}),
+            2,
+        ),
     )
 
     conn.commit()

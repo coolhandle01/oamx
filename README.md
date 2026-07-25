@@ -46,6 +46,17 @@ pipx install oamx          # or: pip install oamx
 Python 3.10+. No runtime dependencies — deliberately. A recon pipeline that
 breaks because of a transitive dependency resolution is worse than no tool.
 
+There are two entry points and they are interchangeable:
+
+```bash
+oamx names -d example.com          # the console script
+python -m oamx names -d example.com   # when PATH is not set up for you
+```
+
+The second is the one that keeps working inside a container, a
+`pip install --target` layout, or anywhere the scripts directory is not on
+`PATH`. Both are checked against the built wheel on every release.
+
 ---
 
 ## Quickstart
@@ -73,17 +84,25 @@ oamx json -d example.com > assets.jsonl
 database        /home/you/.config/amass/amass.sqlite
 layout          v5 (entities/edges)
 provenance      yes
-time filtering  SQL
-assets          16
+assets          22
 
-  FQDN                 7
+  FQDN                 8
+  Service              3
   IPAddress            3
+  Identifier           2
   URL                  1
   TLSCertificate       1
-  Service              1
+  SomeFutureAssetType  1
   Netblock             1
+  ContactRecord        1
   AutonomousSystem     1
 ```
+
+That is real output from the test fixture rather than an illustration, and
+everything below the `database` line is asserted against a live run — see
+`tests/test_readme.py`. `SomeFutureAssetType` is in the fixture deliberately:
+an asset type this release has never heard of still gets counted, and still
+comes out of `oamx json` with a usable value.
 
 ---
 
@@ -99,7 +118,7 @@ assets          16
 | `certs` | TLS certificates |
 | `services` | responding network services |
 | `orgs` | organisations |
-| `emails` | contact identifiers |
+| `emails` | email addresses |
 | `targets` | `host:port` pairs, or `--urls` for `scheme://host:port` |
 | `dns` | `name<TAB>RRTYPE<TAB>target` triples |
 | `json` | every matching asset as JSONL, with provenance |
@@ -197,17 +216,16 @@ hosts = values("names", domains=["example.com"], resolved_only=True)
 records = query("all", domains=["example.com"], since="7d")
 ```
 
-For CrewAI:
+`query` returns the same records `oamx json` emits, as dicts. `values` returns
+just the values. Both raise `OamxError` with a message written to be read.
 
-```python
-from oamx.integrations import crewai_tool
+Reading is all it does: the database is opened `mode=ro`, so nothing here can
+start a scan or send traffic. That is a useful property if you are handing it
+to an agent — but oamx ships no agent-framework adapter, deliberately. Build
+that on your side, where your own conventions for tool schemas and error
+handling live.
 
-recon_agent = Agent(role="OSINT Analyst", tools=[crewai_tool()])
-```
-
-The tool is read-only by construction — it cannot start a scan or send traffic,
-only report what Amass already collected. That is a useful property when an
-agent is holding it.
+The package ships `py.typed`, so annotations survive into whatever imports it.
 
 ---
 
@@ -218,11 +236,13 @@ Stated plainly, because a recon tool that overstates itself is worse than useles
 - **SQLite only.** Amass also supports PostgreSQL and Neo4j. The reader is
   written behind an interface so those are clean additions, but shipping
   untested database drivers would defeat the point.
-- **Field names are verified for `FQDN`, `IPAddress` and `Service`** against the
-  Open Asset Model documentation. The remaining ~18 asset types use a
-  best-effort key list with a generic fallback. If one of them extracts the
-  wrong field for you, that's a one-line fix in `model.py` and a very welcome
-  issue.
+- **Field names are verified for `FQDN`, `IPAddress`, `Service` and
+  `Identifier`** against the Open Asset Model documentation and, for
+  `Identifier`, the struct in `owasp-amass/open-asset-model` itself. The
+  remaining ~17 asset types use a best-effort key list with a generic
+  fallback. If one of them extracts the wrong field for you, that's a one-line
+  fix in `model.py` and a very welcome issue — `Identifier` was exactly that,
+  reporting the `unique_id` dedupe key where the value lives in `id`.
 - **The whole graph is loaded into memory** to make scoping and merging correct.
   Fine for target-scoped databases; if yours has millions of entities, this will
   want a streaming path.
@@ -244,13 +264,23 @@ guesses.
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m venv .venv
+.venv/bin/pip install -e ".[dev]"
+.venv/bin/pytest
 ```
 
-50 tests, no dependencies, under a second. The suite has been mutation-tested:
-17 deliberate regressions injected into the scoping, merging, provenance,
-filtering and read-only guarantees, 17 caught. If you add behaviour, break it on
-purpose first and check something goes red.
+122 tests in about a second, gated on branch coverage rather than line
+coverage — this codebase is mostly branching, and line coverage calls a
+half-tested `if` fully covered. `ruff`, `mypy --strict` and `pylint` run from
+the same `dev` extra, so what CI runs and what you run cannot drift; see
+`CONTRIBUTING.md` for the order.
+
+The dev extra is not part of the zero-dependency promise, which is about what
+an *installed* oamx pulls in. CI proves that separately by installing the
+package alone and asserting nothing third-party came with it.
+
+If you add behaviour, break it on purpose first and check something goes red.
+A test that has never been seen to fail has not been shown to test anything.
 
 ## Upstream
 

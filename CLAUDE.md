@@ -14,7 +14,7 @@ Concretely, that means:
 - **Degrade, do not silently drop.** An unparseable timestamp keeps the asset (`_time_ok` returns `True` on `None`). Dropping data because a date would not parse is a false negative, which is the thing we are here to prevent.
 - **A filter that matches nothing is a bug until proven otherwise.** If a new filter can return an empty set on well-formed input, it needs a test that would notice.
 
-The one shipped bug in this repository's history was `--resolved-only` matching v5's `dns_record` edge label exactly, so it discarded every hostname in a v4 database and exited 0. That is the shape to watch for.
+The shape to watch for: a filter that matches one spelling of something Amass spells two ways. It discards everything, exits 0, and looks exactly like a target with nothing on it.
 
 ## Before you start work
 
@@ -27,7 +27,7 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 - **Branch**: cut from current `main`, named `<type>/<short-description>` where `<type>` matches the commit type (`feat/`, `fix/`, `docs/`, `chore/`, `refactor/`). Do not work on `main`.
 - **Commit**: Conventional Commits — `<type>(<scope>)?: <subject>`, lowercase imperative subject.
 - **Test-first.** For a bug fix, commit the failing test on its own first, with the failure output in the commit message, then commit the fix. The history should show the bug, not just its absence.
-- **Before you push**: run the full stack from CONTRIBUTING's "Before you commit" — `ruff check .`, `mypy`, `pylint oamx`, `pytest`, `.claude/hooks/test-hooks.sh` — inside a `.venv` with `pip install -e ".[dev]"`. Then `git diff origin/main --stat` to confirm only what you meant to change is staged. Running the linters is part of the work, not a formality someone else does in review.
+- **Before you push**: run the full stack from CONTRIBUTING's "Before you commit" — `ruff check .`, `mypy`, `pylint oamx`, `pytest` with the coverage flags, `.claude/hooks/test-hooks.sh` — inside a `.venv` with `pip install -e ".[dev]"`. Then `git diff origin/main --stat` to confirm only what you meant to change is staged. Running the linters is part of the work, not a formality someone else does in review.
 - **Never** force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit plain-words authorisation in the immediately preceding message. `--force-with-lease` is no exception.
 - Never put session URLs (`https://claude.ai/code/session_...`) in commit messages or PR bodies — they reference private conversations.
 
@@ -36,19 +36,30 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 Version numbers are derived from commit messages, not chosen by hand, which is the other reason Conventional Commits are enforced in CI.
 
 ```bash
-cz bump          # reads the commits since the last tag, decides the increment
-git push --follow-tags
+cz bump                      # reads the commits since the last tag, decides the increment
+git push --follow-tags       # the bump commit carries the tag with it
+```
+
+Tagging a commit that is already pushed is the other case, and `--follow-tags`
+does nothing there — with no refs to push it takes no tags either, which looks
+like success. Name the tag:
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
 `cz bump` updates `[project].version`, `oamx/__init__.py:__version__` and `CHANGELOG.md` together, commits, and creates an annotated `vX.Y.Z` tag. `major_version_zero` keeps a breaking change from jumping 0.x straight to 1.0.
 
-Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check the console script runs, publish to PyPI, then cut a GitHub release. Nothing publishes on an ordinary push or pull request.
+Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check that both entry points agree, publish to PyPI, then cut a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
 
-PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first.
+PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first, and the environment needs a `v*` **tag** rule or a tag-triggered run cannot reach it.
+
+Do not cut the release through the GitHub UI. `release.yml` runs `gh release create` itself, so a release made by hand makes that step fail after PyPI has already published.
 
 ## Invariants that are not negotiable
 
-- **Zero runtime dependencies.** `pyproject.toml` declares none. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. Framework adapters (`integrations.crewai_tool`) import lazily inside the function. Dev tooling lives in the `dev` extra and is not part of that promise; the `no-deps` CI job proves the promise directly by installing the package alone and asserting nothing third-party came with it.
+- **Zero runtime dependencies.** `pyproject.toml` declares none. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. There is deliberately no agent-framework adapter — that belongs to the consumer, against their own tool conventions. Dev tooling lives in the `dev` extra and is not part of that promise; the `no-deps` CI job proves the promise directly by installing the package alone and asserting nothing third-party came with it.
 - **The database is opened read-only**, via a `file:...?mode=ro` URI, because people will point this at a database while Amass is mid-enumeration. There is a test that a `DELETE` raises. Do not relax it.
 - **oamx never sends traffic.** It reads what Amass already collected. This is the property that makes it safe to hand to an agent, and it is stated as a promise in the README and the tool description.
 - **Python 3.10 is the floor** (`requires-python`), and CI runs 3.10 through 3.13.

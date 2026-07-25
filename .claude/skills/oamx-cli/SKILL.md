@@ -46,14 +46,13 @@ Command-specific flags go on the individual subparser (`--ipv4` on `ips`, `--url
 
 ## Keep the CLI and the library in step
 
-`integrations.query` is the programmatic front door — agent frameworks and scripts want data back, not a subprocess. It is deliberately free of any framework import so it can be tested standalone; the CrewAI adapter imports lazily inside `crewai_tool()` and raises a message telling the caller what to install.
+`integrations.query` is the programmatic front door — scripts and agent frameworks want data back, not a subprocess. It ships no framework adapter and should not grow one: oamx reads an Amass database, and a caller wanting to hand that to an LLM has their own conventions for tool schemas, return types and error handling. Guessing at those means an optional dependency and a wrong guess. The consumer builds the adapter.
 
-The two surfaces have parallel tables that must be edited together:
+One table defines the views: `model.VIEW_TYPES`. `cli.TYPE_COMMANDS` derives from it by dropping the library-only `all`; `integrations.VIEWS` is it. Add a view there and both surfaces get it.
 
-- `cli.TYPE_COMMANDS` - subcommand to OAM asset types
-- `integrations.VIEWS` - view name to OAM asset types
+Do not reintroduce a second table. Two lists of view names in two modules drift, and the failure is asymmetric — a view present in one surface and absent from the other works on the command line and raises `unknown view` from the library, which looks like a caller error rather than a packaging one. `TestNoMoreDrift` pins them against each other.
 
-**These have already drifted**: `emails` is in `TYPE_COMMANDS` and missing from `VIEWS`, so it works on the command line and raises `unknown view` from the library. Adding a command means adding a view in the same commit, and if you fix that drift, add a test that walks both tables and asserts they agree.
+**A view is a set of asset types plus, sometimes, a predicate.** Type selection alone could not express `emails`: an email is an `Identifier` *whose `id_type` says so*, and that one asset type carries every other scheme OAM knows — handles, tickers, tax ids, IBANs. `model.in_view(view, asset)` is where that narrowing lives, and both surfaces apply it. If a new view needs more than a type list, extend `in_view` rather than filtering in one caller.
 
 ## Structured output
 
@@ -65,8 +64,8 @@ New record kinds get a `kind` value (`asset`, `edge`, `target`, `stats`) and the
 
 - Anything other than results on stdout.
 - A new subcommand that does not take `parents=[common]`.
-- Adding to `TYPE_COMMANDS` without adding to `VIEWS`.
+- Defining a view anywhere but `model.VIEW_TYPES`, or filtering a view inside one surface instead of extending `model.in_view`.
 - Unsorted or duplicated output.
 - A JSON array instead of JSONL.
 - Catching `OamxError` anywhere but `main`. Raise it with a message the user can act on and let the single handler print it.
-- Making `crewai` (or any framework) a module-level import in `integrations.py`. Zero runtime dependencies is a promise in `pyproject.toml`.
+- Importing an agent framework anywhere in `integrations.py`, at module scope or lazily. Zero runtime dependencies is a promise in `pyproject.toml`, and the adapter is the consumer's to write.

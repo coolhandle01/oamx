@@ -22,9 +22,11 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - run: pip install -e ".[dev]"
-      # Branch coverage and the fail-under gate come from
-      # [tool.pytest.ini_options], so this is the same command contributors run.
-      - run: pytest
+      # Branch coverage, not line coverage: this codebase is mostly branching
+      # and line coverage calls a half-tested `if` fully covered. Spelled out
+      # here rather than in addopts so the sdist's suite stays runnable with
+      # plain pytest - see the comment in pyproject.
+      - run: pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=93
 
   no-deps:
     name: installs with no dependencies
@@ -54,4 +56,7 @@ jobs:
         run: |
           python -c "import oamx, oamx.cli, oamx.model, oamx.reader, oamx.select"
           python -c "import oamx.integrations"
-      - run: oamx --version
+      - name: both entry points work with nothing else installed
+        run: |
+          oamx --version
+          python -m oamx --version
