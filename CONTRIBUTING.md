@@ -140,9 +140,11 @@ Branch from current `main` as `<type>/<short-description>`; do not work on `main
 
 Never force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit authorisation in the immediately preceding message.
 
+Never put session URLs (`https://claude.ai/code/session_...`) in a commit message or a pull request description. They link to a private AI-assistant conversation, and a public repository is a durable record — indexed, forked, and mirrored — so a pasted session link leaks that conversation the day the repo, a fork, or an upstream breach exposes it. The plain `https://claude.ai/code` attribution link carries no session id and is fine; the `session_...` path is the part that must never land in git history.
+
 ## Pull requests
 
-If you push a branch, open a pull request for it, and stay subscribed so review comments and CI events reach you.
+If you push a branch, open a pull request for it, and stay subscribed so review comments and CI events reach you. The repository has a pull request template; fill it in rather than deleting it.
 
 ## Where to find more
 
