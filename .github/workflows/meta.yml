@@ -1,0 +1,44 @@
+name: meta
+
+# Checks on the repository itself rather than on oamx. The tool's own suite
+# lives in tests.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  hooks:
+    name: hooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # shellcheck and jq are both preinstalled on ubuntu runners, which keeps
+      # this job dependency-free like the rest of the repo.
+      - name: shellcheck
+        run: shellcheck .claude/hooks/*.sh
+      - name: behaviour tests
+        run: .claude/hooks/test-hooks.sh
+
+  commits:
+    name: commit messages
+    runs-on: ubuntu-latest
+    # Only meaningful on a pull request, where there is a base to diff against.
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # cz needs the real history to walk the range, not a shallow clone.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pipx install commitizen
+      - name: conventional commits
+        run: >
+          cz check --rev-range
+          ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
