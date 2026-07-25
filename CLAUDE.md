@@ -14,7 +14,7 @@ Concretely, that means:
 - **Degrade, do not silently drop.** An unparseable timestamp keeps the asset (`_time_ok` returns `True` on `None`). Dropping data because a date would not parse is a false negative, which is the thing we are here to prevent.
 - **A filter that matches nothing is a bug until proven otherwise.** If a new filter can return an empty set on well-formed input, it needs a test that would notice.
 
-The one shipped bug in this repository's history was `--resolved-only` matching v5's `dns_record` edge label exactly, so it discarded every hostname in a v4 database and exited 0. That is the shape to watch for.
+The shape to watch for: a filter that matches one spelling of something Amass spells two ways. It discards everything, exits 0, and looks exactly like a target with nothing on it.
 
 ## Before you start work
 
@@ -36,15 +36,26 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 Version numbers are derived from commit messages, not chosen by hand, which is the other reason Conventional Commits are enforced in CI.
 
 ```bash
-cz bump          # reads the commits since the last tag, decides the increment
-git push --follow-tags
+cz bump                      # reads the commits since the last tag, decides the increment
+git push --follow-tags       # the bump commit carries the tag with it
+```
+
+Tagging a commit that is already pushed is the other case, and `--follow-tags`
+does nothing there — with no refs to push it takes no tags either, which looks
+like success. Name the tag:
+
+```bash
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
 ```
 
 `cz bump` updates `[project].version`, `oamx/__init__.py:__version__` and `CHANGELOG.md` together, commits, and creates an annotated `vX.Y.Z` tag. `major_version_zero` keeps a breaking change from jumping 0.x straight to 1.0.
 
-Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check the console script runs, publish to PyPI, then cut a GitHub release. Nothing publishes on an ordinary push or pull request.
+Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check that both entry points agree, publish to PyPI, then cut a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
 
-PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first.
+PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first, and the environment needs a `v*` **tag** rule or a tag-triggered run cannot reach it.
+
+Do not cut the release through the GitHub UI. `release.yml` runs `gh release create` itself, so a release made by hand makes that step fail after PyPI has already published.
 
 ## Invariants that are not negotiable
 

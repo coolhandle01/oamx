@@ -30,7 +30,7 @@ Branch coverage rather than line coverage is deliberate. This codebase is mostly
 
 Both databases are built once per process via `fixtures.shared_databases()`, so asking for them is cheap. They are read-only to every test; nothing writes to them.
 
-New tests are plain functions taking fixtures. The remaining `unittest.TestCase` classes in `test_oamx.py` predate the move to pytest and run natively under it — convert them opportunistically, not in one sweep. A mechanical rewrite of fifty assertions is a good way to weaken a suite without noticing.
+New tests are plain functions taking fixtures. The `unittest.TestCase` classes in `test_oamx.py` run natively under pytest — convert them opportunistically, not in one sweep. A mechanical rewrite of fifty assertions is a good way to weaken a suite without noticing.
 
 ## Extend the shared dataset, do not build your own database
 
@@ -46,9 +46,9 @@ Add rows to `ENTITIES` / `EDGES` / `SOURCES` in `fixtures.py` rather than standi
 
 ## Layout-sensitive behaviour is tested against both databases
 
-**This is the rule the suite was missing when `--resolved-only` shipped broken.** The v4 coverage exercised layout detection, `dns` and plain `names` — none of which depend on how a DNS edge is labelled. The one flag that did was only ever tested against v5, so it returned nothing on v4 and exited 0.
+If the behaviour touches an edge label, a column name, or anything the two generations spell differently, take `any_db`.
 
-If the behaviour touches an edge label, a column name, or anything the two generations spell differently, take `any_db`:
+Most of the suite is layout-agnostic, which makes this easy to skip: cover layout detection, `dns` and plain `names` against one database and everything looks tested. The flags that read edge labels are the ones that fail, and they fail by returning nothing and exiting 0.
 
 ```python
 def test_names_are_scoped_on_either_layout(any_db):

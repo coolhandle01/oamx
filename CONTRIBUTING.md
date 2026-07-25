@@ -8,7 +8,7 @@ For what the tool does and how to install it, see `README.md`.
 
 **An empty result that exits 0 is the worst thing this tool can do.**
 
-oamx exists because Amass v5 kept writing `subs.txt` and stopped putting anything in it. The scan worked, the data was there, the pipeline succeeded, and it found nothing — quietly, on a schedule, for months. Reproducing that failure mode inside oamx would be the joke writing itself, and it has already happened once: `--resolved-only` matched v5's `dns_record` edge label exactly, so it discarded every hostname in a v4 database and exited 0.
+oamx exists because Amass v5 kept writing `subs.txt` and stopped putting anything in it. The scan worked, the data was there, the pipeline succeeded, and it found nothing — quietly, on a schedule, for months. Reproducing that failure mode inside oamx would be the joke writing itself, and it is easy to do by accident — a filter that matches one spelling of something Amass spells two ways discards everything, exits 0, and is indistinguishable from a target with nothing on it.
 
 In practice: degrade rather than raise, degrade rather than silently drop, and treat a filter that can return nothing on well-formed input as a bug until a test says otherwise.
 
@@ -69,7 +69,7 @@ assert "dev.example.com" not in names
 
 ### Layout-sensitive behaviour is tested against both databases
 
-If what you are testing touches an edge label, a column name, or anything the two Amass generations spell differently, take the `any_db` fixture or assert against `v5_db` and `v4_db` explicitly. The one shipped bug in this repository existed because the v4 coverage happened to miss the single flag that read edge labels.
+If what you are testing touches an edge label, a column name, or anything the two Amass generations spell differently, take the `any_db` fixture or assert against `v5_db` and `v4_db` explicitly. Most of the suite is layout-agnostic, so it is easy to cover a lot against one database and leave the label-reading flags — the ones that actually differ — tested against neither.
 
 ## Universal rules
 

@@ -48,9 +48,9 @@ Command-specific flags go on the individual subparser (`--ipv4` on `ips`, `--url
 
 `integrations.query` is the programmatic front door — scripts and agent frameworks want data back, not a subprocess. It ships no framework adapter and should not grow one: oamx reads an Amass database, and a caller wanting to hand that to an LLM has their own conventions for tool schemas, return types and error handling. Guessing at those means an optional dependency and a wrong guess. The consumer builds the adapter.
 
-The two surfaces used to keep parallel tables, and they drifted: `emails` was in `cli.TYPE_COMMANDS` and missing from `integrations.VIEWS`, so it worked on the command line and raised `unknown view` from the library.
+One table defines the views: `model.VIEW_TYPES`. `cli.TYPE_COMMANDS` derives from it by dropping the library-only `all`; `integrations.VIEWS` is it. Add a view there and both surfaces get it.
 
-There is now one table, `model.VIEW_TYPES`, and both derive from it — `TYPE_COMMANDS` filters out the library-only `all`, and `VIEWS` is the table itself. Add a view there and both surfaces get it. `TestNoMoreDrift` pins that they stay in step.
+Do not reintroduce a second table. Two lists of view names in two modules drift, and the failure is asymmetric — a view present in one surface and absent from the other works on the command line and raises `unknown view` from the library, which looks like a caller error rather than a packaging one. `TestNoMoreDrift` pins them against each other.
 
 **A view is a set of asset types plus, sometimes, a predicate.** Type selection alone could not express `emails`: an email is an `Identifier` *whose `id_type` says so*, and that one asset type carries every other scheme OAM knows — handles, tickers, tax ids, IBANs. `model.in_view(view, asset)` is where that narrowing lives, and both surfaces apply it. If a new view needs more than a type list, extend `in_view` rather than filtering in one caller.
 
@@ -64,7 +64,7 @@ New record kinds get a `kind` value (`asset`, `edge`, `target`, `stats`) and the
 
 - Anything other than results on stdout.
 - A new subcommand that does not take `parents=[common]`.
-- Adding to `TYPE_COMMANDS` without adding to `VIEWS`.
+- Defining a view anywhere but `model.VIEW_TYPES`, or filtering a view inside one surface instead of extending `model.in_view`.
 - Unsorted or duplicated output.
 - A JSON array instead of JSONL.
 - Catching `OamxError` anywhere but `main`. Raise it with a message the user can act on and let the single handler print it.

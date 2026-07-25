@@ -31,13 +31,15 @@ extract_value("Quantum", {"weird": 1})   # '{"weird":1}'
 return content["name"]
 ```
 
-`VALUE_KEYS` is split into a VERIFIED block and a best-effort block, and the comment saying which is which is load-bearing. Three types (`FQDN`, `IPAddress`, `Service`) are confirmed against the [OAM asset docs](https://owasp-amass.github.io/docs/open_asset_model/assets/); the rest are guesses that happen to work. If you verify one, **move it into the VERIFIED block in the same commit** — otherwise the README's "three are verified" claim quietly becomes a lie in the other direction.
+`VALUE_KEYS` is split into a VERIFIED block and a best-effort block, and the comment saying which is which is load-bearing. Verified means checked against the [OAM asset docs](https://owasp-amass.github.io/docs/open_asset_model/assets/) or the structs in [owasp-amass/open-asset-model](https://github.com/owasp-amass/open-asset-model); the rest are guesses that happen to work.
+
+If you verify one, **move it into the VERIFIED block in the same commit**, and update the count in the README's known limits. The distinction is only worth anything if it is accurate — a best-effort key list that silently reports the wrong field looks exactly like a correct one until somebody pipes it somewhere.
 
 Ordering inside a type's tuple matters: first key present and non-empty wins, so put the identifying field before the descriptive one.
 
 ## Layout differences are absorbed here, not by callers
 
-This is the rule that the one shipped bug in this repository broke.
+This is the rule most worth holding on to.
 
 v5 labels every DNS edge `dns_record` and carries the record type as a numeric `header.rr_type`. v4 encoded it in the label itself: `a_record`, `cname_record`, `aaaa_record`. `Edge.is_dns` and `Edge.rr_name` know both spellings.
 
