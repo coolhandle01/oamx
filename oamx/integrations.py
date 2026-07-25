@@ -100,7 +100,7 @@ min_confidence: drop assets below this source confidence (0-100)
 """
 
 
-def crewai_tool(default_db: str | None = None, **defaults: Any):
+def crewai_tool(default_db: str | None = None, **defaults: Any) -> Any:
     """Build a CrewAI tool wrapping :func:`query`.
 
     Imported lazily so that CrewAI is never a hard dependency of oamx.

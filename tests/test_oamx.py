@@ -17,6 +17,8 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from oamx.cli import main  # noqa: E402
@@ -26,22 +28,9 @@ from oamx.reader import AssetDB, OamxError, _parse_ts, parse_duration  # noqa: E
 from oamx.select import resolved_fqdns  # noqa: E402
 from tests import fixtures  # noqa: E402
 
-_TMP: tempfile.TemporaryDirectory | None = None
-V5: Path
-V4: Path
-
-
-def setUpModule() -> None:
-    global _TMP, V5, V4
-    _TMP = tempfile.TemporaryDirectory()
-    root = Path(_TMP.name)
-    V5 = fixtures.build_v5(root / "amass.sqlite")
-    V4 = fixtures.build_v4(root / "amass_v4.sqlite")
-
-
-def tearDownModule() -> None:
-    if _TMP is not None:
-        _TMP.cleanup()
+# The same two databases the conftest fixtures hand to pytest-style tests;
+# built once per process and shared, not rebuilt per entry point.
+V5, V4 = fixtures.shared_databases()
 
 
 class CliCase(unittest.TestCase):
@@ -424,40 +413,73 @@ class TestExitCodes(CliCase):
         self.assertNotIn("other.co.uk", names)
 
 
-class TestLayoutParity(CliCase):
-    """Answers that must not depend on which Amass version wrote the database.
+# --- layout parity (pytest style) -------------------------------------------
+#
+# Answers that must not depend on which Amass version wrote the database. v5
+# labels every DNS edge `dns_record` and carries the record type in a numeric
+# `header.rr_type`; v4 encoded it in the label instead (`a_record`,
+# `aaaa_record`, `cname_record`). Anything keying off edge labels has to accept
+# both spellings, and the cost of getting it wrong is asymmetric: a filter that
+# matches nothing empties the pipeline and still exits 0.
+#
+# These are the pattern for new tests - plain functions, conftest fixtures,
+# parametrize instead of hand-rolled loops.
 
-    v5 labels every DNS edge ``dns_record`` and carries the record type in a
-    numeric ``header.rr_type``. v4 encoded it in the label instead:
-    ``a_record``, ``aaaa_record``, ``cname_record``. Anything that keys off
-    edge labels has to accept both spellings, and the cost of getting it wrong
-    is asymmetric — a filter that matches nothing empties the pipeline and
-    still exits 0, which is the failure this tool exists to prevent.
-    """
 
-    def test_resolved_only_agrees_across_layouts(self):
-        v5_names = self.run_cli("names", "--db", str(V5), "-d", "example.com", "--resolved-only")
-        v4_names = self.run_cli("names", "--db", str(V4), "-d", "example.com", "--resolved-only")
-        # Assert the contents, not only that the two agree: two empty lists
-        # are also equal, and empty is exactly the bug being guarded against.
-        self.assertIn("www.example.com", v5_names)
-        self.assertNotIn("dev.example.com", v5_names, "no DNS record in either fixture")
-        self.assertEqual(v4_names, v5_names)
+def _cli(*argv: str) -> list[str]:
+    """Run the CLI and return its non-empty stdout lines."""
+    out, err = io.StringIO(), io.StringIO()
+    with redirect_stdout(out), redirect_stderr(err):
+        code = main(list(argv))
+    assert code in (0, 1), f"unexpected exit code {code}: {err.getvalue()}"
+    return [line for line in out.getvalue().splitlines() if line]
 
-    def test_resolved_fqdns_accepts_every_dns_label_spelling(self):
-        name = Asset(id=1, type="FQDN", value="www.example.com")
-        addr = Asset(id=2, type="IPAddress", value="93.184.216.34")
-        for label in ("dns_record", "a_record", "aaaa_record", "cname_record"):
-            with self.subTest(label=label):
-                edge = Edge(id=1, type="BasicDNSRelation", label=label,
-                            from_asset=name, to_asset=addr)
-                self.assertEqual(resolved_fqdns([edge]), {1})
 
-    def test_resolved_fqdns_ignores_non_dns_edges(self):
-        name = Asset(id=1, type="FQDN", value="www.example.com")
-        svc = Asset(id=2, type="Service", value="svc-443-www")
-        edge = Edge(id=1, type="PortRelation", label="port", from_asset=name, to_asset=svc)
-        self.assertEqual(resolved_fqdns([edge]), set())
+# Every example.com name in the shared fixture, in the CLI's sorted output
+# order, and the subset carrying a DNS record. The difference between them is
+# dev.example.com, which exists but never resolved.
+#
+# Whole-list assertions rather than membership checks, deliberately. Membership
+# pins presence only; the full list pins absence too, so a scope leak
+# (other.co.uk, cdn.provider.net) and a dropped name fail the same assertion.
+# It also means adding a row to the shared dataset forces a look at the parity
+# tests, which is exactly when you want to be thinking about them.
+SCOPED_NAMES = [
+    "api.example.com",
+    "dev.example.com",
+    "example.com",
+    "new.example.com",
+    "www.example.com",
+]
+RESOLVED_NAMES = [name for name in SCOPED_NAMES if name != "dev.example.com"]
+
+
+def test_resolved_only_agrees_across_layouts(v5_db, v4_db):
+    v5_names = _cli("names", "--db", str(v5_db), "-d", "example.com", "--resolved-only")
+    v4_names = _cli("names", "--db", str(v4_db), "-d", "example.com", "--resolved-only")
+    # Pin the contents, not only that the two agree: two empty lists are also
+    # equal, and empty is exactly the bug being guarded against.
+    assert v5_names == RESOLVED_NAMES
+    assert v4_names == RESOLVED_NAMES
+
+
+def test_names_are_scoped_on_either_layout(any_db):
+    assert _cli("names", "--db", str(any_db), "-d", "example.com") == SCOPED_NAMES
+
+
+@pytest.mark.parametrize("label", ["dns_record", "a_record", "aaaa_record", "cname_record"])
+def test_resolved_fqdns_accepts_every_dns_label_spelling(label):
+    name = Asset(id=1, type="FQDN", value="www.example.com")
+    addr = Asset(id=2, type="IPAddress", value="93.184.216.34")
+    edge = Edge(id=1, type="BasicDNSRelation", label=label, from_asset=name, to_asset=addr)
+    assert resolved_fqdns([edge]) == {1}
+
+
+def test_resolved_fqdns_ignores_non_dns_edges():
+    name = Asset(id=1, type="FQDN", value="www.example.com")
+    svc = Asset(id=2, type="Service", value="svc-443-www")
+    edge = Edge(id=1, type="PortRelation", label="port", from_asset=name, to_asset=svc)
+    assert resolved_fqdns([edge]) == set()
 
 
 class TestLibraryApi(unittest.TestCase):

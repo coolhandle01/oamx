@@ -8,9 +8,13 @@ can be tested without a live enumeration.
 
 from __future__ import annotations
 
+import atexit
 import json
+import shutil
 import sqlite3
+import tempfile
 from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 
 NOW = datetime(2026, 7, 24, 12, 0, 0, tzinfo=timezone.utc)
@@ -238,3 +242,18 @@ def build_garbage(path: Path) -> Path:
     conn.commit()
     conn.close()
     return path
+
+
+@lru_cache(maxsize=1)
+def shared_databases() -> tuple[Path, Path]:
+    """Build the v5 and v4 databases once per process, and return their paths.
+
+    Both the conftest fixtures and the module-level setup in ``test_oamx``
+    resolve through here, so the two entry points share one build rather than
+    each standing up their own copy. The databases are read-only to every
+    caller; nothing in the suite writes to them.
+    """
+    tmp = tempfile.mkdtemp(prefix="oamx-fixtures-")
+    atexit.register(shutil.rmtree, tmp, True)
+    root = Path(tmp)
+    return build_v5(root / "amass.sqlite"), build_v4(root / "amass_v4.sqlite")

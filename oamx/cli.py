@@ -193,22 +193,28 @@ def cmd_targets(sel: Selection, f: Filters, args: argparse.Namespace) -> int:
     ports = {int(p) for p in _split_list(args.port)} if args.port else None
     rows: list[tuple[str, int, str]] = []  # host, port, service_type
 
+    # `host_asset`, not `host`: the emit loops below bind `host` to the
+    # hostname string, and one name meaning two types in one function is how
+    # you end up reading the wrong one.
     for e in sel.matching_edges(f, labels=["port"]):
-        host = e.from_asset
-        if host.type not in ("FQDN", "IPAddress"):
+        host_asset = e.from_asset
+        if host_asset.type not in ("FQDN", "IPAddress"):
             continue
-        if f.resolved_only and host.type == "FQDN" and host.id not in sel.resolved:
+        if (f.resolved_only and host_asset.type == "FQDN"
+                and host_asset.id not in sel.resolved):
             continue
-        port = e.attrs.get("port_number")
-        if not isinstance(port, int):
+        raw_port = e.attrs.get("port_number")
+        if isinstance(raw_port, int):
+            port = raw_port
+        else:
             try:
-                port = int(str(port))
+                port = int(str(raw_port))
             except (TypeError, ValueError):
                 continue
         if ports is not None and port not in ports:
             continue
         stype = str(e.to_asset.attrs.get("service_type", "") or "")
-        rows.append((host.value, port, stype))
+        rows.append((host_asset.value, port, stype))
 
     rows = sorted(set(rows))
 

@@ -1,30 +1,39 @@
 ---
 name: oamx-tests
-description: The suite is stdlib unittest with no dependencies, built on two synthetic Amass databases. Anything that reads an edge label or a column name is asserted against both layouts, and an assertion that can pass on empty output is not an assertion. Load before editing anything under tests/.
+description: pytest with branch coverage, built on two synthetic Amass databases shared through conftest fixtures. Layout-sensitive behaviour is asserted against both generations, and an assertion that still passes on empty output is not an assertion. Load before editing anything under tests/.
 ---
 
 # oamx test discipline
 
-The suite is stdlib `unittest`, no dependencies, under a second:
-
 ```bash
-python3 -m unittest discover -s tests -v
+.venv/bin/pytest
 ```
 
-That is not minimalism for its own sake. `pyproject.toml` promises zero runtime dependencies and CI installs nothing, so a suite that needed `pytest` would stop proving the thing it is there to prove.
+Branch coverage, the `term-missing` report and the `--cov-fail-under` gate all come from `[tool.pytest.ini_options]`, so the bare command is the whole thing. Dev tooling comes from `pip install -e ".[dev]"`.
 
-## Extend the shared fixtures, do not build your own database
+Branch coverage rather than line coverage is deliberate. This codebase is mostly branching — schema candidate lists, filter guards, degrade-rather-than-raise fallbacks — and line coverage would call a half-tested `if` fully covered. On lines you write or change the bar is both branches exercised, not the project floor.
 
-`tests/fixtures.py` builds two synthetic databases from one shared dataset — `ENTITIES`, `EDGES`, `SOURCES` — reproducing the documented storage layouts:
+## Fixtures come from conftest
 
-| Builder | Layout | Notes |
-|---|---|---|
-| `build_v5` | `entities` / `edges` | labels in the content blob, numeric `header.rr_type`, `entity_tags` provenance |
-| `build_v4` | `assets` / `relations` | label *is* the relation type (`a_record`), no port relations, no provenance |
-| `build_empty` | v5 schema, no rows | the "scan found nothing" case |
-| `build_garbage` | not Amass at all | the "wrong file" case |
+`tests/conftest.py` exposes the databases; `tests/fixtures.py` builds them.
 
-Add rows to the shared lists rather than standing up a bespoke database in your test. Both builders then pick the change up, and the v4/v5 parity tests keep working. The dataset already carries deliberate awkwardness — reuse it:
+| Fixture | What it is |
+|---|---|
+| `v5_db` | Amass v5: `entities`/`edges`, provenance tags, port relations |
+| `v4_db` | the same entities in the v4 layout: label *is* the record type, no port relations, no provenance |
+| `any_db` | parametrized over both — take this for anything layout-sensitive |
+| `empty_db` | well-formed v5 schema, no rows: the "scan found nothing" case |
+| `garbage_db` | a SQLite file that is not an Amass database |
+| `frozen_now` | pins `cli.datetime.now()` to `fixtures.NOW` |
+| `readonly_conn` | a raw read-only connection, for tests about the connection itself |
+
+Both databases are built once per process via `fixtures.shared_databases()`, so asking for them is cheap. They are read-only to every test; nothing writes to them.
+
+New tests are plain functions taking fixtures. The remaining `unittest.TestCase` classes in `test_oamx.py` predate the move to pytest and run natively under it — convert them opportunistically, not in one sweep. A mechanical rewrite of fifty assertions is a good way to weaken a suite without noticing.
+
+## Extend the shared dataset, do not build your own database
+
+Add rows to `ENTITIES` / `EDGES` / `SOURCES` in `fixtures.py` rather than standing up a bespoke database inside a test. Both builders pick the change up and the parity tests keep working. The dataset already carries deliberate awkwardness — reuse it:
 
 - `dev.example.com` (id 4) never resolves — for `--resolved-only`
 - `API.Example.COM.` (id 13) duplicates `api.example.com` — for normalisation and merge
@@ -34,64 +43,67 @@ Add rows to the shared lists rather than standing up a bespoke database in your 
 - edge 15 dangles from a nonexistent entity
 - a `VulnProperty` tag whose content has a `name` key, to catch provenance code that does not check `ttype`
 
-Timestamps come from the frozen `NOW` / `RECENT` / `MID` / `OLD` constants, via `ts()` which pads microseconds out to Go's nanoseconds. For anything time-dependent, freeze the clock rather than computing from the real one:
-
-```python
-frozen = mock.MagicMock()
-frozen.now.return_value = fixtures.NOW
-with mock.patch.object(cli, "datetime", frozen):
-    ...
-```
-
 ## Layout-sensitive behaviour is tested against both databases
 
-**This is the rule the suite was missing when `--resolved-only` shipped broken.**
+**This is the rule the suite was missing when `--resolved-only` shipped broken.** The v4 coverage exercised layout detection, `dns` and plain `names` — none of which depend on how a DNS edge is labelled. The one flag that did was only ever tested against v5, so it returned nothing on v4 and exited 0.
 
-The v4 coverage exercised layout detection, `dns` and plain `names` — none of which depend on how a DNS edge is labelled. The one flag that did was only ever tested against v5, so it returned nothing on v4 and exited 0.
-
-If the behaviour under test touches an edge label, a column name, or anything else the two generations spell differently, assert it against both fixtures:
+If the behaviour touches an edge label, a column name, or anything the two generations spell differently, take `any_db`:
 
 ```python
-def test_something_agrees_across_layouts(self):
-    v5_out = self.run_cli("names", "--db", str(V5), "-d", "example.com", "--flag")
-    v4_out = self.run_cli("names", "--db", str(V4), "-d", "example.com", "--flag")
-    self.assertIn("www.example.com", v5_out)   # <- contents, not just agreement
-    self.assertEqual(v4_out, v5_out)
+def test_names_are_scoped_on_either_layout(any_db):
+    names = _cli("names", "--db", str(any_db), "-d", "example.com")
+    assert "www.example.com" in names
+    assert "other.co.uk" not in names
 ```
 
-Use `subTest` when looping over layouts or labels so one failure does not mask the rest.
+or assert the two agree explicitly when the point *is* the agreement:
+
+```python
+def test_resolved_only_agrees_across_layouts(v5_db, v4_db):
+    v5_names = _cli("names", "--db", str(v5_db), "-d", "example.com", "--resolved-only")
+    v4_names = _cli("names", "--db", str(v4_db), "-d", "example.com", "--resolved-only")
+    assert "www.example.com" in v5_names        # <- contents, not just agreement
+    assert v4_names == v5_names
+```
+
+Use `@pytest.mark.parametrize` rather than looping inside a test. The parameter shows up in the test id, so a failure names the case:
+
+```
+FAILED test_resolved_fqdns_accepts_every_dns_label_spelling[cname_record]
+```
 
 ## An assertion that passes on empty output is not an assertion
 
-`assertEqual([], [])` is true. `assertNotIn(x, [])` is true. In a tool whose defining failure mode is producing nothing, negative-only assertions are close to worthless.
+`assert [] == []` is true. `assert x not in []` is true. In a tool whose defining failure mode is producing nothing, negative-only assertions are close to worthless.
 
 ```python
 # weak - passes just as happily if the command returns nothing at all
-self.assertNotIn("dev.example.com", names)
+assert "dev.example.com" not in names
 
 # strong - pins what should be there as well as what should not
-self.assertIn("www.example.com", names)
-self.assertNotIn("dev.example.com", names)
+assert "www.example.com" in names
+assert "dev.example.com" not in names
 ```
 
 Every filter test asserts something survives the filter, not only that something was removed.
 
 ## Test through the CLI where the CLI is the contract
 
-`CliCase` gives you two runners: `run_cli` returns non-empty stdout lines and asserts the exit code was 0 or 1; `run_cli_full` returns `(code, stdout, stderr)` when the code or the stderr text is the thing under test.
-
-Prefer the CLI-level test for anything a user can observe — it covers argument parsing, filter translation, selection and emission in one go. Drop to a unit test when you are pinning a specific rule (`resolved_fqdns` accepting every DNS label spelling, `_parse_ts` on a malformed stamp) and the CLI would only tell you *that* something broke.
+`_cli(...)` runs the parser, filter translation, selection and emission in one go and returns the non-empty stdout lines — prefer it for anything a user can observe. Drop to a unit test when you are pinning a specific rule (`resolved_fqdns` accepting every label spelling, `_parse_ts` on a malformed stamp) and a CLI test would only tell you *that* something broke.
 
 ## Write the failing test first
 
-For a bug fix, commit the failing test on its own, with the failure output in the commit message, then commit the fix. The history should show the bug rather than only its absence, and a test that was never seen to fail has not been shown to test anything.
+Commit it on its own, with the failure output in the commit message, before the fix. A test that was never seen to fail has not been shown to test anything.
+
+When you change something load-bearing, the strongest check is to break it on purpose and confirm the suite goes red. Re-introducing the `dns_record` label bug should fail `test_resolved_only_agrees_across_layouts` and three of the four parametrized label cases.
 
 ## Anti-patterns
 
-- `pytest`, `hypothesis`, or any other dependency.
 - A bespoke SQLite database built inline instead of extending `fixtures.py`.
-- Layout-sensitive behaviour asserted against `V5` only.
+- Layout-sensitive behaviour asserted against `v5_db` only.
 - A test whose assertions all still pass when the command returns nothing.
-- Computing a time window from `datetime.now()` instead of freezing the clock.
-- Writing to the fixture databases. They are shared across the module and opened read-only.
-- Asserting on the full text of an `OamxError`. Assert the substring a user would search for.
+- A loop inside a test where `parametrize` would name the failing case.
+- Computing a time window from `datetime.now()` instead of taking `frozen_now`.
+- Writing to the shared databases. They are session-scoped and opened read-only.
+- Asserting the full text of an `OamxError`. Assert the substring a user would search for.
+- Adding a test dependency without adding it to the `dev` extra in `pyproject.toml`.
