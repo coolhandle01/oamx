@@ -197,17 +197,16 @@ hosts = values("names", domains=["example.com"], resolved_only=True)
 records = query("all", domains=["example.com"], since="7d")
 ```
 
-For CrewAI:
+`query` returns the same records `oamx json` emits, as dicts. `values` returns
+just the values. Both raise `OamxError` with a message written to be read.
 
-```python
-from oamx.integrations import crewai_tool
+Reading is all it does: the database is opened `mode=ro`, so nothing here can
+start a scan or send traffic. That is a useful property if you are handing it
+to an agent — but oamx ships no agent-framework adapter, deliberately. Build
+that on your side, where your own conventions for tool schemas and error
+handling live.
 
-recon_agent = Agent(role="OSINT Analyst", tools=[crewai_tool()])
-```
-
-The tool is read-only by construction — it cannot start a scan or send traffic,
-only report what Amass already collected. That is a useful property when an
-agent is holding it.
+The package ships `py.typed`, so annotations survive into whatever imports it.
 
 ---
 

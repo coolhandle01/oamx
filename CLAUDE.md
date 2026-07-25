@@ -48,7 +48,7 @@ PyPI upload uses Trusted Publishing, so there is no API token in the repository 
 
 ## Invariants that are not negotiable
 
-- **Zero runtime dependencies.** `pyproject.toml` declares none. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. Framework adapters (`integrations.crewai_tool`) import lazily inside the function. Dev tooling lives in the `dev` extra and is not part of that promise; the `no-deps` CI job proves the promise directly by installing the package alone and asserting nothing third-party came with it.
+- **Zero runtime dependencies.** `pyproject.toml` declares none. A recon pipeline that breaks on a transitive dependency resolution is worse than no tool. There is deliberately no agent-framework adapter — that belongs to the consumer, against their own tool conventions. Dev tooling lives in the `dev` extra and is not part of that promise; the `no-deps` CI job proves the promise directly by installing the package alone and asserting nothing third-party came with it.
 - **The database is opened read-only**, via a `file:...?mode=ro` URI, because people will point this at a database while Amass is mid-enumeration. There is a test that a `DELETE` raises. Do not relax it.
 - **oamx never sends traffic.** It reads what Amass already collected. This is the property that makes it safe to hand to an agent, and it is stated as a promise in the README and the tool description.
 - **Python 3.10 is the floor** (`requires-python`), and CI runs 3.10 through 3.13.

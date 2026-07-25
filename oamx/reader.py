@@ -210,20 +210,6 @@ class AssetDB:
 
         self.generation = "v5" if self.entity_table == "entities" else "v4"
 
-        # Can SQLite parse this database's timestamps? If so we can push time
-        # filters down into SQL; if not we filter in Python.
-        self._sql_time_ok = False
-        if self.c_eupdated:
-            try:
-                row = self.conn.execute(
-                    f'SELECT datetime("{self.c_eupdated}") AS d '
-                    f'FROM "{self.entity_table}" '
-                    f'WHERE "{self.c_eupdated}" IS NOT NULL LIMIT 1'
-                ).fetchone()
-                self._sql_time_ok = bool(row and row["d"])
-            except sqlite3.Error:
-                self._sql_time_ok = False
-
     # -- describe ---------------------------------------------------------
 
     def describe(self) -> dict[str, Any]:
@@ -233,7 +219,6 @@ class AssetDB:
             "entity_table": self.entity_table,
             "edge_table": self.edge_table,
             "entity_tag_table": self.entity_tag_table,
-            "sql_time_pushdown": self._sql_time_ok,
         }
 
     def type_counts(self) -> dict[str, int]:
@@ -326,55 +311,6 @@ class AssetDB:
             f'"{self.c_econtent}" AS content, {created} AS created, {updated} AS updated '
             f'FROM "{self.entity_table}"'
         )
-
-    def assets(
-        self,
-        types: Iterable[str] | None = None,
-        since: datetime | None = None,
-        since_field: str = "updated",
-        with_sources: bool = False,
-    ) -> list[Asset]:
-        """Fetch assets, optionally restricted by type and recency."""
-        sql = self._asset_select()
-        where: list[str] = []
-        params: list[Any] = []
-
-        types = list(types) if types else []
-        if types:
-            where.append(f'"{self.c_etype}" IN ({",".join("?" * len(types))})')
-            params += types
-
-        col = self.c_eupdated if since_field == "updated" else self.c_ecreated
-        # Spelled out rather than hoisted into a `push_down` flag so the type
-        # checker can see that `since` is not None inside the branch.
-        push_down = since is not None and self._sql_time_ok and col is not None
-        if since is not None and push_down:
-            where.append(f'datetime("{col}") >= datetime(?)')
-            params.append(since.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"))
-
-        if where:
-            sql += " WHERE " + " AND ".join(where)
-
-        rows = self.conn.execute(sql, params).fetchall()
-        assets = [self._row_to_asset(r) for r in rows]
-
-        if since is not None and not push_down:
-            key = "last_seen" if since_field == "updated" else "first_seen"
-            filtered = []
-            for a in assets:
-                ts = _parse_ts(getattr(a, key))
-                if ts is None or ts >= since:
-                    filtered.append(a)
-            assets = filtered
-
-        if with_sources:
-            src = self._load_sources(
-                self.entity_tag_table, self.c_eid or "entity_id", {a.id for a in assets}
-            )
-            for a in assets:
-                a.sources = src.get(a.id, [])
-
-        return assets
 
     def assets_by_id(self, ids: Iterable[int] | None = None) -> dict[int, Asset]:
         """Load assets keyed by id. Passing ``None`` loads everything."""

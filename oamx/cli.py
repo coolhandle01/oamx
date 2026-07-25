@@ -307,7 +307,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print(f"layout          {info['generation']} ({info['entity_table']}"
               f"{'/' + info['edge_table'] if info['edge_table'] else ', no relations table'})")
         print(f"provenance      {'yes' if info['entity_tag_table'] else 'not available'}")
-        print(f"time filtering  {'SQL' if info['sql_time_pushdown'] else 'in-process'}")
         counts = db.type_counts()
         total = sum(counts.values())
         print(f"assets          {total}")

@@ -46,7 +46,7 @@ Command-specific flags go on the individual subparser (`--ipv4` on `ips`, `--url
 
 ## Keep the CLI and the library in step
 
-`integrations.query` is the programmatic front door — agent frameworks and scripts want data back, not a subprocess. It is deliberately free of any framework import so it can be tested standalone; the CrewAI adapter imports lazily inside `crewai_tool()` and raises a message telling the caller what to install.
+`integrations.query` is the programmatic front door — scripts and agent frameworks want data back, not a subprocess. It ships no framework adapter and should not grow one: oamx reads an Amass database, and a caller wanting to hand that to an LLM has their own conventions for tool schemas, return types and error handling. Guessing at those means an optional dependency and a wrong guess. The consumer builds the adapter.
 
 The two surfaces have parallel tables that must be edited together:
 
@@ -69,4 +69,4 @@ New record kinds get a `kind` value (`asset`, `edge`, `target`, `stats`) and the
 - Unsorted or duplicated output.
 - A JSON array instead of JSONL.
 - Catching `OamxError` anywhere but `main`. Raise it with a message the user can act on and let the single handler print it.
-- Making `crewai` (or any framework) a module-level import in `integrations.py`. Zero runtime dependencies is a promise in `pyproject.toml`.
+- Importing an agent framework anywhere in `integrations.py`, at module scope or lazily. Zero runtime dependencies is a promise in `pyproject.toml`, and the adapter is the consumer's to write.
