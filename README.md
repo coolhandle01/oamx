@@ -46,6 +46,17 @@ pipx install oamx          # or: pip install oamx
 Python 3.10+. No runtime dependencies — deliberately. A recon pipeline that
 breaks because of a transitive dependency resolution is worse than no tool.
 
+There are two entry points and they are interchangeable:
+
+```bash
+oamx names -d example.com          # the console script
+python -m oamx names -d example.com   # when PATH is not set up for you
+```
+
+The second is the one that keeps working inside a container, a
+`pip install --target` layout, or anywhere the scripts directory is not on
+`PATH`. Both are checked against the built wheel on every release.
+
 ---
 
 ## Quickstart

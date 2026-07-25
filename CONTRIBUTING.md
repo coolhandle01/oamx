@@ -27,7 +27,7 @@ Python 3.10 is the `requires-python` floor and CI runs 3.10 through 3.13. Then r
 .venv/bin/ruff check .
 .venv/bin/mypy
 .venv/bin/pylint oamx
-.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=92
+.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=93
 .claude/hooks/test-hooks.sh
 ```
 

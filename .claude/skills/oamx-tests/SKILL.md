@@ -7,7 +7,7 @@ description: pytest with branch coverage, built on two synthetic Amass databases
 
 ```bash
 .venv/bin/pytest                       # the suite
-.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=92
+.venv/bin/pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=93
 ```
 
 The coverage flags are deliberately not in `addopts`. The sdist ships this suite so a downstream packager can verify the build they are shipping, and a packager has `pytest` but no reason to have `pytest-cov` - in `addopts` those flags give them an argparse error rather than a test run. So bare `pytest` runs the suite, and the gate lives in the invocation that CONTRIBUTING and `tests.yml` both use. Dev tooling comes from `pip install -e ".[dev]"`.

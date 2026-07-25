@@ -84,11 +84,23 @@ testpaths = ["tests"]
 [tool.coverage.run]
 branch = true
 source = ["oamx"]
+# __main__.py is the `python -m oamx` entry point: two imports and a
+# `if __name__` guard that is false whenever the module is imported. An
+# in-process test would execute the imports and prove nothing, so it is
+# verified where an entry-point regression would actually surface - against
+# the built wheel in release.yml and the bare install in tests.yml. Measuring
+# it here would only ever report 0% and make the total mean less.
+omit = ["oamx/__main__.py"]
 
 [tool.coverage.report]
 exclude_also = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
+    # False whenever the module is imported, true only under `python -m`, so
+    # it cannot be covered by an in-process test. That entry point is verified
+    # against the built wheel in release.yml and tests.yml instead - which is
+    # where an entry-point regression would actually show up.
+    'if __name__ == "__main__":',
 ]
 
 [tool.mypy]
