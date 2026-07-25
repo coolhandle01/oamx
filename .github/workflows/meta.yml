@@ -12,18 +12,49 @@ permissions:
   contents: read
 
 jobs:
+  # Every tool version comes from the `dev` extra in pyproject, so what CI runs
+  # and what CONTRIBUTING tells you to run cannot drift apart.
   lint:
     name: ruff
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      # Pinned deliberately. A floating ruff turns "someone released a new rule"
-      # into "main is red", which is not a signal about this repository.
-      - run: pipx run ruff==0.16.0 check .
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
       # `ruff format` is not enforced. The source is hand-wrapped - aligned
       # argparse calls, deliberate string continuations - and the formatter
       # would rewrite ten files to no benefit. Revisit as its own change if
       # ever, never as a drive-by.
+
+  types:
+    name: mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # The floor, not the newest: strict mode against 3.10 is what
+          # `python_version` in [tool.mypy] pins, and a newer interpreter would
+          # quietly accept syntax the floor rejects.
+          python-version: "3.10"
+      - run: pip install -e ".[dev]"
+      - run: mypy
+
+  design:
+    name: pylint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      # Scoped to design and length checks and gated on a score; ruff owns
+      # style. See [tool.pylint] for what is enabled and why.
+      - run: pylint oamx
 
   hooks:
     name: hooks
