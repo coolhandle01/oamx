@@ -8,7 +8,7 @@ import sys
 from datetime import datetime, timezone
 
 from . import __version__
-from .model import SCHEMA_VERSION, Asset, Edge
+from .model import SCHEMA_VERSION, VIEW_TYPES, Asset, Edge, in_view
 from .reader import OamxError, open_db, parse_duration, warn
 from .select import DEFAULT_SCOPE_DEPTH, Filters, Selection, build
 
@@ -22,17 +22,10 @@ examples:
   oamx doctor                                        # what does my database contain?
 """
 
-# command -> OAM asset types it selects
+# The type-selecting subcommands, derived from the one view table in model.py
+# rather than restated here. `all` is library-only - there is no `oamx all`.
 TYPE_COMMANDS: dict[str, tuple[str, ...]] = {
-    "names": ("FQDN",),
-    "ips": ("IPAddress",),
-    "cidrs": ("Netblock",),
-    "asns": ("AutonomousSystem",),
-    "urls": ("URL",),
-    "certs": ("TLSCertificate",),
-    "services": ("Service",),
-    "orgs": ("Organization",),
-    "emails": ("Identifier", "ContactRecord"),
+    view: types for view, types in VIEW_TYPES.items() if view != "all"
 }
 
 HTTP_PORTS = {80, 443, 8080, 8443, 8000, 8888, 3000, 4443, 9443}
@@ -92,7 +85,7 @@ def build_parser() -> argparse.ArgumentParser:
         "certs": "TLS certificates",
         "services": "responding network services",
         "orgs": "organisations",
-        "emails": "contact identifiers",
+        "emails": "email addresses",
     }
     for name, desc in descriptions.items():
         sp = sub.add_parser(name, parents=[common], help=desc, description=desc)
@@ -172,7 +165,10 @@ def emit_assets(assets: list[Asset], args: argparse.Namespace) -> int:
 
 
 def cmd_types(sel: Selection, f: Filters, args: argparse.Namespace) -> int:
-    assets = sel.matching(f, TYPE_COMMANDS[args.command])
+    assets = [
+        a for a in sel.matching(f, TYPE_COMMANDS[args.command])
+        if in_view(args.command, a)
+    ]
 
     if args.command == "ips" and (args.ipv4 or args.ipv6):
         want = set()

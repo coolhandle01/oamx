@@ -16,22 +16,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from .model import Asset
+from .model import VIEW_TYPES, Asset, in_view
 from .reader import OamxError, open_db, parse_duration
 from .select import DEFAULT_SCOPE_DEPTH, Filters, build
 
-# What each named view selects. Mirrors the CLI subcommands.
-VIEWS: dict[str, tuple[str, ...]] = {
-    "names": ("FQDN",),
-    "ips": ("IPAddress",),
-    "cidrs": ("Netblock",),
-    "asns": ("AutonomousSystem",),
-    "urls": ("URL",),
-    "certs": ("TLSCertificate",),
-    "services": ("Service",),
-    "orgs": ("Organization",),
-    "all": (),
-}
+# The same table the CLI derives its subcommands from. Kept as a module
+# attribute because callers import it to enumerate the views.
+VIEWS = VIEW_TYPES
 
 
 def query(
@@ -76,7 +67,9 @@ def query(
 
     with open_db(db) as conn:
         selection = build(conn, filters)
-        assets: list[Asset] = selection.matching(filters, VIEWS[view] or None)
+        assets: list[Asset] = [
+            a for a in selection.matching(filters, VIEWS[view] or None) if in_view(view, a)
+        ]
 
     if limit is not None:
         assets = assets[:limit]

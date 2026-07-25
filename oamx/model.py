@@ -33,6 +33,11 @@ VALUE_KEYS: dict[str, tuple[str, ...]] = {
     "FQDN": ("name",),
     "IPAddress": ("address",),
     "Service": ("unique_id", "service_type"),
+    # `id` before `unique_id`: OAM's Identifier holds the value (an email
+    # address, a registry handle) in `id`, and uses `unique_id` as a dedupe
+    # key that namespaces it - "email:abuse@example.com". Reporting the key
+    # hands the caller something that is not the address it looks like.
+    "Identifier": ("id", "unique_id", "value"),
     # Best-effort
     "Netblock": ("cidr", "range"),
     "AutonomousSystem": ("number", "asn"),
@@ -43,7 +48,6 @@ VALUE_KEYS: dict[str, tuple[str, ...]] = {
     "URL": ("url", "raw"),
     "Organization": ("name", "legal_name"),
     "Person": ("full_name", "name"),
-    "Identifier": ("unique_id", "id", "value"),
     "ContactRecord": ("discovered_at",),
     "Location": ("address", "formatted_address"),
     "Phone": ("raw", "e164"),
@@ -73,6 +77,42 @@ RR_TYPES: dict[int, str] = {
 
 # Asset types that make sense as network scan targets.
 HOSTLIKE_TYPES = frozenset({"FQDN", "IPAddress"})
+
+# view name -> the OAM asset types it selects. One table, here in the stable
+# layer, because the CLI and the library each used to keep their own: `emails`
+# was in one and not the other, so it worked on the command line and raised
+# `unknown view` from `query()`.
+#
+# An empty tuple means "every type" and is the library-only `all` view.
+VIEW_TYPES: dict[str, tuple[str, ...]] = {
+    "names": ("FQDN",),
+    "ips": ("IPAddress",),
+    "cidrs": ("Netblock",),
+    "asns": ("AutonomousSystem",),
+    "urls": ("URL",),
+    "certs": ("TLSCertificate",),
+    "services": ("Service",),
+    "orgs": ("Organization",),
+    "emails": ("Identifier",),
+    "all": (),
+}
+
+# OAM's id_type for an email address. The Identifier asset covers forty-odd
+# schemes - handles, tickers, tax ids, IBANs - so selecting the type alone
+# gets you everything except a shortlist of addresses.
+EMAIL_ID_TYPE = "email"
+
+
+def in_view(view: str, asset: Asset) -> bool:
+    """Whether ``asset`` belongs in ``view``, beyond matching its type.
+
+    Only ``emails`` narrows further today. Type selection alone cannot
+    express it: an email is an ``Identifier`` *whose ``id_type`` says so*,
+    and the same asset type carries every other identifier scheme OAM knows.
+    """
+    if view == "emails":
+        return str(asset.attrs.get("id_type", "")).strip().lower() == EMAIL_ID_TYPE
+    return True
 
 
 def extract_value(asset_type: str, content: dict[str, Any]) -> str:

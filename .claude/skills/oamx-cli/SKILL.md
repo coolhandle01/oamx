@@ -48,12 +48,11 @@ Command-specific flags go on the individual subparser (`--ipv4` on `ips`, `--url
 
 `integrations.query` is the programmatic front door — scripts and agent frameworks want data back, not a subprocess. It ships no framework adapter and should not grow one: oamx reads an Amass database, and a caller wanting to hand that to an LLM has their own conventions for tool schemas, return types and error handling. Guessing at those means an optional dependency and a wrong guess. The consumer builds the adapter.
 
-The two surfaces have parallel tables that must be edited together:
+The two surfaces used to keep parallel tables, and they drifted: `emails` was in `cli.TYPE_COMMANDS` and missing from `integrations.VIEWS`, so it worked on the command line and raised `unknown view` from the library.
 
-- `cli.TYPE_COMMANDS` - subcommand to OAM asset types
-- `integrations.VIEWS` - view name to OAM asset types
+There is now one table, `model.VIEW_TYPES`, and both derive from it — `TYPE_COMMANDS` filters out the library-only `all`, and `VIEWS` is the table itself. Add a view there and both surfaces get it. `TestNoMoreDrift` pins that they stay in step.
 
-**These have already drifted**: `emails` is in `TYPE_COMMANDS` and missing from `VIEWS`, so it works on the command line and raises `unknown view` from the library. Adding a command means adding a view in the same commit, and if you fix that drift, add a test that walks both tables and asserts they agree.
+**A view is a set of asset types plus, sometimes, a predicate.** Type selection alone could not express `emails`: an email is an `Identifier` *whose `id_type` says so*, and that one asset type carries every other scheme OAM knows — handles, tickers, tax ids, IBANs. `model.in_view(view, asset)` is where that narrowing lives, and both surfaces apply it. If a new view needs more than a type list, extend `in_view` rather than filtering in one caller.
 
 ## Structured output
 

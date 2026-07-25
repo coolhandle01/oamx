@@ -99,7 +99,7 @@ assets          16
 | `certs` | TLS certificates |
 | `services` | responding network services |
 | `orgs` | organisations |
-| `emails` | contact identifiers |
+| `emails` | email addresses |
 | `targets` | `host:port` pairs, or `--urls` for `scheme://host:port` |
 | `dns` | `name<TAB>RRTYPE<TAB>target` triples |
 | `json` | every matching asset as JSONL, with provenance |
