@@ -154,7 +154,17 @@ class AssetDB:
         except sqlite3.Error as exc:
             raise OamxError(f"cannot open {self.path}: {exc}") from exc
         self.conn.row_factory = sqlite3.Row
-        self._introspect()
+        # connect() is lazy: a file that is not a database at all opens
+        # happily and only fails on the first query, which is here. Left
+        # unwrapped that surfaces as a bare sqlite3.DatabaseError - a
+        # traceback for the user, since main() catches OamxError, and an
+        # aborted search for open_db, whose loop skips OamxError only. Both
+        # are reachable from a stray *.sqlite file in a directory discovery
+        # searches. OamxError raised by _introspect itself passes through.
+        try:
+            self._introspect()
+        except sqlite3.DatabaseError as exc:
+            raise OamxError(f"cannot read {self.path}: {exc}") from exc
 
     # -- setup ------------------------------------------------------------
 

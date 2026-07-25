@@ -82,7 +82,7 @@ addopts = """
     --cov=oamx
     --cov-branch
     --cov-report=term-missing
-    --cov-fail-under=83
+    --cov-fail-under=92
 """
 
 [tool.coverage.run]
