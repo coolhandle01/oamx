@@ -435,20 +435,36 @@ def _cli(*argv: str) -> list[str]:
     return [line for line in out.getvalue().splitlines() if line]
 
 
+# Every example.com name in the shared fixture, in the CLI's sorted output
+# order, and the subset carrying a DNS record. The difference between them is
+# dev.example.com, which exists but never resolved.
+#
+# Whole-list assertions rather than membership checks, deliberately. Membership
+# pins presence only; the full list pins absence too, so a scope leak
+# (other.co.uk, cdn.provider.net) and a dropped name fail the same assertion.
+# It also means adding a row to the shared dataset forces a look at the parity
+# tests, which is exactly when you want to be thinking about them.
+SCOPED_NAMES = [
+    "api.example.com",
+    "dev.example.com",
+    "example.com",
+    "new.example.com",
+    "www.example.com",
+]
+RESOLVED_NAMES = [name for name in SCOPED_NAMES if name != "dev.example.com"]
+
+
 def test_resolved_only_agrees_across_layouts(v5_db, v4_db):
     v5_names = _cli("names", "--db", str(v5_db), "-d", "example.com", "--resolved-only")
     v4_names = _cli("names", "--db", str(v4_db), "-d", "example.com", "--resolved-only")
-    # Assert the contents, not only that the two agree: two empty lists are
-    # also equal, and empty is exactly the bug being guarded against.
-    assert "www.example.com" in v5_names
-    assert "dev.example.com" not in v5_names, "no DNS record in either fixture"
-    assert v4_names == v5_names
+    # Pin the contents, not only that the two agree: two empty lists are also
+    # equal, and empty is exactly the bug being guarded against.
+    assert v5_names == RESOLVED_NAMES
+    assert v4_names == RESOLVED_NAMES
 
 
 def test_names_are_scoped_on_either_layout(any_db):
-    names = _cli("names", "--db", str(any_db), "-d", "example.com")
-    assert "www.example.com" in names
-    assert "other.co.uk" not in names, "a different target must not leak in"
+    assert _cli("names", "--db", str(any_db), "-d", "example.com") == SCOPED_NAMES
 
 
 @pytest.mark.parametrize("label", ["dns_record", "a_record", "aaaa_record", "cname_record"])
