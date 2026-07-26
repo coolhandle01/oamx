@@ -36,6 +36,11 @@ dev = [
     # Pinned exactly: a floating linter turns a new upstream rule into a red
     # main, which is not a signal about this repository.
     "ruff==0.16.0",
+    # Release tooling: `cz check` (commit-message linting) and `cz bump`
+    # (version bump + tag + changelog) per [tool.commitizen] and the release
+    # workflow. Declared here so `pip install -e ".[dev]"` provides `cz`
+    # locally, matching what CI and the release pipeline assume.
+    "commitizen>=3.28",
 ]
 
 [project.scripts]
