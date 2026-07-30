@@ -7,6 +7,9 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Callable so the release pipeline can run this exact gate before it builds -
+  # a tag exercises everything a PR does, then the release steps on top.
+  workflow_call:
 
 permissions:
   contents: read
@@ -86,3 +89,14 @@ jobs:
         run: >
           cz check --rev-range
           ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}
+      # A squash merge uses the pull request title as the commit subject, so the
+      # title faces the same rule the commits do. Without this a branch of
+      # conventional commits can still land on main as a non-conventional one,
+      # which bumpversion.yml cannot read - so the release silently never happens.
+      - name: conventional pull request title
+        env:
+          # Through the environment rather than interpolated into the script: the
+          # title is user-controlled text, and inlining it into `run` would be a
+          # command-injection seam.
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: cz check --message "$PR_TITLE"

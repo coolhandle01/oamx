@@ -1,0 +1,72 @@
+name: bump version
+
+# Versioning is automatic: every merge to main that warrants a release bumps the
+# version, writes the changelog, commits, and tags - then the tag push triggers
+# release.yml, which publishes. Nobody runs `cz bump` by hand; doing so locally
+# races other merges and strands a version commit that can only be landed with a
+# force-push.
+#
+# This is commitizen's own recommended setup (their commitizen-action), with one
+# deliberate change: authentication is a GitHub App installation token rather
+# than a personal access token.
+#
+# The App token is load-bearing, not a preference. GitHub deliberately does NOT
+# fire workflows for pushes made with the default GITHUB_TOKEN, so a bump
+# authenticated that way would push the tag and release.yml would never run. A
+# GitHub App installation token does trigger downstream workflows - and unlike a
+# PAT it is short-lived (one hour), scoped to the repositories the App is
+# installed on and the permissions it was granted, and not tied to a person's
+# account.
+
+on:
+  push:
+    branches: [main]
+
+# One bump at a time. Two merges landing together would otherwise both compute a
+# version from the same base.
+concurrency:
+  group: bump
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  bump:
+    name: bump version and tag
+    runs-on: ubuntu-latest
+    # The App credentials are environment-scoped, so the job joins the
+    # environment to read them. Deliberately NOT the pypi environment: that one
+    # is approval-gated for publishing, and a gate here would stop every merge to
+    # main waiting for a click before it could even compute a version.
+    environment: commitizen
+    # The bump itself is a push to main, which re-triggers this workflow. Without
+    # this guard that is an infinite loop.
+    if: "!startsWith(github.event.head_commit.message, 'bump:')"
+    steps:
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ vars.COMMITIZEN_CLIENT_ID }}
+          # The App's private key (the .pem), not its OAuth client secret. The
+          # secret is named for the pair it sits beside; this input takes the key.
+          private-key: ${{ secrets.COMMITIZEN_CLIENT_SECRET }}
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          # commitizen decides the increment from the commits since the last
+          # tag, so it needs the full history and the tags.
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      # Reads [tool.commitizen] from pyproject.toml: bumps the version, updates
+      # the version files and CHANGELOG, commits, tags, and pushes both. Exits
+      # without bumping when nothing since the last tag warrants a release.
+      - uses: commitizen-tools/commitizen-action@master
+        with:
+          github_token: ${{ steps.app-token.outputs.token }}
+          # cz exits 21 (NO_COMMITS_TO_BUMP) when nothing since the last tag
+          # warrants a release, and the action runs under `set -e` - so without
+          # this every docs:/ci:/chore: merge would fail the job and redden main.
+          # Nothing to release is a normal outcome, not an error.
+          no_raise: "21"

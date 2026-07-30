@@ -33,25 +33,18 @@ Then ask what canonical knowledge the change produces that is not yet in a skill
 
 ## Releasing
 
-Version numbers are derived from commit messages, not chosen by hand, which is the other reason Conventional Commits are enforced in CI.
+Version numbers are derived from commit messages, not chosen by hand, which is the other reason Conventional Commits are enforced in CI. The bump is made by CI, not by you: **merge your pull request and the release happens.**
 
-```bash
-cz bump                      # reads the commits since the last tag, decides the increment
-git push --follow-tags       # the bump commit carries the tag with it
-```
+`bumpversion.yml` runs on every merge to `main`. If the commits since the last tag warrant a release, commitizen updates `[project].version`, `oamx/__init__.py:__version__` and `CHANGELOG.md` together, commits as `bump: ...`, and pushes the commit and its annotated `vX.Y.Z` tag. If nothing warrants one it does nothing and passes — `cz` exits 21 for "no commits to bump", which is a normal outcome, not a failure. `major_version_zero` keeps a breaking change from jumping 0.x straight to 1.0.
 
-Tagging a commit that is already pushed is the other case, and `--follow-tags`
-does nothing there — with no refs to push it takes no tags either, which looks
-like success. Name the tag:
+**Never run `cz bump` yourself.** It writes a version commit to your local `main` and tags it, so the moment `main` has moved on that commit can only be landed with a force-push — leaving a local `main` diverged from the remote and a tag that is not an ancestor of either. `cz` stays in the dev extra for `cz check` and for previewing the next version (`cz bump --dry-run`).
 
-```bash
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
-```
+The tag `bumpversion.yml` pushes is what triggers `release.yml`: it re-runs the whole PR gate (`meta.yml` and `tests.yml`, called as reusable workflows rather than copied), then builds, `twine check`s, installs the built wheel on 3.10 and 3.13 and checks that both entry points agree, publishes to PyPI, and cuts a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
 
-`cz bump` updates `[project].version`, `oamx/__init__.py:__version__` and `CHANGELOG.md` together, commits, and creates an annotated `vX.Y.Z` tag. `major_version_zero` keeps a breaking change from jumping 0.x straight to 1.0.
+Two pieces of repository configuration this depends on:
 
-Pushing that tag is the only thing that triggers `release.yml`: build, `twine check`, install the built wheel on 3.10 and 3.13 and check that both entry points agree, publish to PyPI, then cut a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
+- The bump authenticates as a **GitHub App**, not with the default `GITHUB_TOKEN`. That is load-bearing: GitHub deliberately does not fire workflows for pushes made with `GITHUB_TOKEN`, so a tag pushed that way would never trigger `release.yml`. The App needs `Contents: read and write`, and its client id and private key live in the `commitizen` environment as `COMMITIZEN_CLIENT_ID` / `COMMITIZEN_CLIENT_SECRET`. That environment must not be approval-gated — a gate there would stop every merge to `main` waiting for a click before it could even compute a version.
+- `main`'s branch ruleset requires pull requests, so the App has to be on the ruleset's **bypass list** or its `bump:` commit is rejected while the tag still lands — leaving the tag pointing at a commit that is not on `main`.
 
 PyPI upload uses Trusted Publishing, so there is no API token in the repository — the `pypi` environment and the publisher entry on PyPI have to exist first, and the environment needs a `v*` **tag** rule or a tag-triggered run cannot reach it.
 

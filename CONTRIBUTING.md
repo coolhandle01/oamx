@@ -136,7 +136,9 @@ These exist for reasons that are not obvious from the code alone.
 
 ## Branches and commits
 
-Branch from current `main` as `<type>/<short-description>`; do not work on `main`. Commits are [Conventional Commits](https://www.conventionalcommits.org/) — CI checks them with `cz check`, and `cz bump` derives the version from them.
+Branch from current `main` as `<type>/<short-description>`; do not work on `main`. Commits are [Conventional Commits](https://www.conventionalcommits.org/) — CI checks them with `cz check`, and CI derives the released version from them on merge.
+
+Your **pull request title** faces the same rule, and CI checks it too. A squash merge uses the title as the commit subject on `main`, so a branch of perfectly conventional commits can still land as a non-conventional one — which the version bump cannot read, silently skipping the release.
 
 Never force-push, `push --delete`, or `branch -D` a shared or PR branch without explicit authorisation in the immediately preceding message.
 
