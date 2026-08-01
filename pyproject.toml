@@ -31,6 +31,7 @@ dependencies = []
 dev = [
     "pytest>=8",
     "pytest-cov>=5",
+    "diff-cover>=9",  # per-PR coverage ratchet: 100% on the lines a PR touches
     "mypy>=1.11",
     "pylint>=3.2",
     # Pinned exactly: a floating linter turns a new upstream rule into a red
