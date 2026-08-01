@@ -39,7 +39,7 @@ Version numbers are derived from commit messages, not chosen by hand, which is t
 
 **Never run `cz bump` yourself.** It writes a version commit to your local `main` and tags it, so the moment `main` has moved on that commit can only be landed with a force-push — leaving a local `main` diverged from the remote and a tag that is not an ancestor of either. `cz` stays in the dev extra for `cz check` and for previewing the next version (`cz bump --dry-run`).
 
-The tag `bumpversion.yml` pushes is what triggers `release.yml`: it re-runs the whole PR gate (`meta.yml` and `tests.yml`, called as reusable workflows rather than copied), then builds, `twine check`s, installs the built wheel on 3.10 and 3.13 and checks that both entry points agree, publishes to PyPI, and cuts a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
+The tag `bumpversion.yml` pushes is what triggers `release.yml`: it re-runs the whole PR gate (`analysers.yml` and `tests.yml`, called as reusable workflows rather than copied), then builds, `twine check`s, installs the built wheel on 3.10 and 3.13 and checks that both entry points agree, publishes to PyPI, and cuts a GitHub release. The publish job waits on a manual approval — that is the `pypi` environment's required reviewer, not a hang. Nothing publishes on an ordinary push or pull request.
 
 Two pieces of repository configuration this depends on:
 
