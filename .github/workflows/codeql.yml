@@ -1,0 +1,56 @@
+# CodeQL advanced setup. Replaces the repo's CodeQL *default* setup so the scan
+# is version-controlled here rather than configured in repo settings - and, more
+# importantly, so it can be called by release.yml as part of the release gate.
+#
+# Default setup must be turned off (Settings > Code security > Code scanning) for
+# this workflow to run - the two cannot run together, and while default setup is
+# enabled the analyze step below fails.
+#
+# workflow_call is what lets release.yml run this exact scan against the tag
+# before publishing, so a release physically cannot precede its CodeQL results.
+# Python uses build-mode `none` - the extractor reads source directly, no build.
+name: CodeQL
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  schedule:
+    # Weekly catch-all so new CodeQL queries run against main even in quiet
+    # weeks. Off-the-hour minute per GitHub's scheduling guidance.
+    - cron: "27 3 * * 1"
+  # Callable so release.yml can gate the publish on a fresh scan of the tag.
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write  # required by github/codeql-action/analyze to upload results
+      actions: read
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4.37.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@e4fba868fa4b1b91e1fdab776edc8cfbe6e9fb81  # v4.37.3
+        with:
+          category: "/language:${{ matrix.language }}"
