@@ -14,8 +14,8 @@ permissions:
 jobs:
   # A release runs the full PR gate first, by calling the very same reusable
   # workflows a pull request runs - not a copy of them. If ruff, mypy, pylint,
-  # the hook tests, the 3.10-3.13 test matrix, or the no-dependencies check
-  # would fail on a PR, the release stops here, before build.
+  # the hook tests, the 3.10-3.13 test matrix, the no-dependencies check, or
+  # CodeQL would fail on a PR, the release stops here, before build.
   #
   # Left unnamed on purpose: a called workflow's checks are prefixed with the
   # calling job's name, so each one already answers to two names - `ruff` on a
@@ -29,9 +29,21 @@ jobs:
   tests:
     uses: ./.github/workflows/tests.yml
 
+  # CodeQL against the exact tag being published. This is the "release happens
+  # last" guarantee: on an ordinary merge the scan runs in parallel with the
+  # bump, so a tag could otherwise be published before its results landed. The
+  # caller job grants security-events:write, which the called workflow inherits
+  # (reusable-workflow permissions downgrade only, so this is the ceiling).
+  codeql:
+    uses: ./.github/workflows/codeql.yml
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
   build:
     name: build
-    needs: [checks, tests]
+    needs: [checks, tests, codeql]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
