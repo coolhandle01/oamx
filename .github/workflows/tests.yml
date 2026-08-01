@@ -20,6 +20,10 @@ jobs:
     name: python ${{ matrix.python-version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          # diff-cover compares the PR's touched lines against the base branch,
+          # so the base ref must be present in the clone.
+          fetch-depth: 0
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
         with:
           python-version: ${{ matrix.python-version }}
@@ -27,8 +31,16 @@ jobs:
       # Branch coverage, not line coverage: this codebase is mostly branching
       # and line coverage calls a half-tested `if` fully covered. Spelled out
       # here rather than in addopts so the sdist's suite stays runnable with
-      # plain pytest - see the comment in pyproject.
-      - run: pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-fail-under=93
+      # plain pytest - see the comment in pyproject. The xml report feeds diff-cover.
+      - run: pytest --cov=oamx --cov-branch --cov-report=term-missing --cov-report=xml --cov-fail-under=93
+      # Per-PR ratchet: every line this PR adds or changes must be covered
+      # (100% on the diff), on top of the absolute floor above - the floor
+      # catches a collapse, this catches slow drift on touched lines. One python
+      # version is enough (the diff is version-independent); PR-only, since a
+      # push to main has no base branch to compare against.
+      - name: Diff coverage (per-PR ratchet)
+        if: github.event_name == 'pull_request' && matrix.python-version == '3.12'
+        run: diff-cover coverage.xml --compare-branch=origin/${{ github.base_ref }} --fail-under=100
 
   no-deps:
     name: installs with no dependencies
