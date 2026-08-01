@@ -24,7 +24,7 @@ jobs:
   # that copy is what the required-status-check picker offers, since it lists
   # whatever ran most recently.
   checks:
-    uses: ./.github/workflows/meta.yml
+    uses: ./.github/workflows/analysers.yml
 
   tests:
     uses: ./.github/workflows/tests.yml
